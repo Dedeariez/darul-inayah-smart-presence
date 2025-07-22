@@ -1,0 +1,5 @@
+{
+  "name": "Absensi Madrasah Darul Inayah",
+  "description": "A comprehensive attendance management application for Madrasah Aliyah Darul Inayah, allowing teachers to manage student data, track attendance, and generate reports, while providing parents with a view of their child's attendance records.",
+  "requestFramePermissions": []
+}
