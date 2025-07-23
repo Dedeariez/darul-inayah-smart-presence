@@ -8,6 +8,12 @@ export interface User {
   role: UserRole;
 }
 
+export interface RegisterCredentials {
+  name: string;
+  email: string;
+  password: string;
+}
+
 export type Gender = 'L' | 'P';
 export type Grade = '10' | '11' | '12';
 export type ClassLetter = 'A' | 'B';
@@ -16,6 +22,7 @@ export interface Student {
   id: string;
   name: string;
   nisn?: string;
+  dateOfBirth?: string; // YYYY-MM-DD
   grade: Grade;
   classLetter: ClassLetter;
   gender: Gender;

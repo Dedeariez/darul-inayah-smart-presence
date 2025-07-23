@@ -1,14 +1,12 @@
-
 import React from 'react';
 import { cn } from '../../lib/utils';
 
 // We've updated the Button component to support an `as` prop, allowing it to be rendered as different elements.
-// The props are based on `React.HTMLAttributes<HTMLElement>` to be more flexible.
-interface ButtonProps extends React.HTMLAttributes<HTMLElement> {
+// The props are now based on `React.ButtonHTMLAttributes<HTMLButtonElement>` to be more flexible and include standard button props like `type`.
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger';
   isLoading?: boolean;
   as?: React.ElementType;
-  disabled?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({ 
@@ -27,8 +25,10 @@ const Button: React.FC<ButtonProps> = ({
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
   };
 
-  const allProps: Record<string, any> = { ...props };
+  const allProps: { [key: string]: any } = { ...props };
   if (Component === 'button') {
+    // The 'disabled' prop is part of ButtonHTMLAttributes, so it's in `props`.
+    // We augment it with the `isLoading` state.
     allProps.disabled = isLoading || props.disabled;
   }
 

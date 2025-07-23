@@ -6,7 +6,6 @@ import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { useAuth } from '../hooks/useAuth';
 
 const icons = {
     edit: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>,
@@ -19,6 +18,7 @@ const StudentForm: React.FC<{ student: Partial<Student> | null, onSave: (student
     const [formData, setFormData] = useState({
         name: student?.name || '',
         nisn: student?.nisn || '',
+        dateOfBirth: student?.dateOfBirth || '',
         grade: student?.grade || '10',
         gender: student?.gender || 'L',
     });
@@ -42,6 +42,10 @@ const StudentForm: React.FC<{ student: Partial<Student> | null, onSave: (student
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">NISN (Opsional)</label>
                 <Input name="nisn" value={formData.nisn} onChange={handleChange} />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir (Opsional)</label>
+                <Input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} />
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
@@ -73,8 +77,6 @@ const Students: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
     const [filter, setFilter] = useState('all');
-    const { user } = useAuth();
-    const isTeacher = user?.role === 'teacher';
 
     const fetchStudents = useCallback(async () => {
         setLoading(true);
@@ -89,16 +91,8 @@ const Students: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (isTeacher) {
-            fetchStudents();
-        } else if (user) {
-            // Parent view
-            setLoading(true);
-            api.students.getStudentForParent(user.id).then(student => {
-                setStudents(student ? [student] : []);
-            }).finally(() => setLoading(false));
-        }
-    }, [fetchStudents, user, isTeacher]);
+        fetchStudents();
+    }, [fetchStudents]);
     
     const handleOpenModal = (student: Student | null = null) => {
         setEditingStudent(student);
@@ -111,13 +105,17 @@ const Students: React.FC = () => {
     };
 
     const handleSaveStudent = async (data: Omit<Student, 'id' | 'classLetter'>) => {
-        if (editingStudent) {
-            await api.students.updateStudent(editingStudent.id, data);
-        } else {
-            await api.students.addStudent(data);
+        try {
+            if (editingStudent) {
+                await api.students.updateStudent(editingStudent.id, data);
+            } else {
+                await api.students.addStudent(data);
+            }
+            fetchStudents();
+            handleCloseModal();
+        } catch (error) {
+            alert(`Gagal menyimpan siswa: ${(error as Error).message}`);
         }
-        fetchStudents();
-        handleCloseModal();
     };
     
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,24 +124,31 @@ const Students: React.FC = () => {
 
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const data = new Uint8Array(e.target?.result as ArrayBuffer);
-            const workbook = (window as any).XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json = (window as any).XLSX.utils.sheet_to_json(worksheet);
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = (window as any).XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = (window as any).XLSX.utils.sheet_to_json(worksheet);
 
-            const newStudents = json.map((row: any) => ({
-                name: row.Nama,
-                grade: String(row.Kelas) as Grade,
-                gender: row['Jenis Kelamin'] as Gender,
-                nisn: row.NISN ? String(row.NISN) : undefined,
-            }));
-            
-            await api.students.bulkAddStudents(newStudents);
-            alert(`${newStudents.length} siswa berhasil di-upload!`);
-            fetchStudents();
+                const newStudents = json.map((row: any) => ({
+                    name: row.Nama,
+                    grade: String(row.Kelas) as Grade,
+                    gender: row['Jenis Kelamin'] as Gender,
+                    nisn: row.NISN ? String(row.NISN) : undefined,
+                    dateOfBirth: row['Tanggal Lahir'] ? new Date((row['Tanggal Lahir'] - (25567 + 1)) * 86400 * 1000).toISOString().split('T')[0] : undefined,
+                }));
+                
+                await api.students.bulkAddStudents(newStudents);
+                alert(`${newStudents.length} siswa berhasil di-upload!`);
+                fetchStudents();
+            } catch (error) {
+                alert(`Gagal mengupload file: ${(error as Error).message}`);
+                console.error(error);
+            }
         };
         reader.readAsArrayBuffer(file);
+        event.target.value = ''; // Reset file input
     };
 
     const filteredStudents = students.filter(s => {
@@ -155,7 +160,6 @@ const Students: React.FC = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Data Siswa</h1>
-                {isTeacher && (
                 <div className="flex space-x-2">
                      <label className="cursor-pointer">
                         <Button as="span" variant="secondary" className="flex items-center space-x-2">
@@ -167,17 +171,14 @@ const Students: React.FC = () => {
                         {icons.add} <span>Tambah Siswa</span>
                     </Button>
                 </div>
-                )}
             </div>
 
-            {isTeacher && (
-                <div className="flex space-x-2">
-                    <Button variant={filter === 'all' ? 'primary' : 'secondary'} onClick={() => setFilter('all')}>Semua</Button>
-                    {['10A', '10B', '11A', '11B', '12A', '12B'].map(c => (
-                        <Button key={c} variant={filter === c ? 'primary' : 'secondary'} onClick={() => setFilter(c)}>{c}</Button>
-                    ))}
-                </div>
-            )}
+            <div className="flex space-x-2">
+                <Button variant={filter === 'all' ? 'primary' : 'secondary'} onClick={() => setFilter('all')}>Semua</Button>
+                {['10A', '10B', '11A', '11B', '12A', '12B'].map(c => (
+                    <Button key={c} variant={filter === c ? 'primary' : 'secondary'} onClick={() => setFilter(c)}>{c}</Button>
+                ))}
+            </div>
             
             <Card>
                 <CardContent className="p-0">
@@ -187,30 +188,30 @@ const Students: React.FC = () => {
                             <tr>
                                 <th scope="col" className="px-6 py-3">Nama</th>
                                 <th scope="col" className="px-6 py-3">NISN</th>
+                                <th scope="col" className="px-6 py-3">Tgl Lahir</th>
                                 <th scope="col" className="px-6 py-3">Kelas</th>
                                 <th scope="col" className="px-6 py-3">Jenis Kelamin</th>
-                                {isTeacher && <th scope="col" className="px-6 py-3">Aksi</th>}
+                                <th scope="col" className="px-6 py-3">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={5} className="text-center p-6">Loading...</td></tr>
+                                <tr><td colSpan={6} className="text-center p-6">Loading...</td></tr>
                             ) : filteredStudents.length === 0 ? (
-                                <tr><td colSpan={5} className="text-center p-6">Tidak ada data siswa.</td></tr>
+                                <tr><td colSpan={6} className="text-center p-6">Tidak ada data siswa.</td></tr>
                             ) : (
                                 filteredStudents.map(student => (
                                     <tr key={student.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50">
                                         <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{student.name}</td>
                                         <td className="px-6 py-4">{student.nisn || '-'}</td>
+                                        <td className="px-6 py-4">{student.dateOfBirth || '-'}</td>
                                         <td className="px-6 py-4">{student.grade}{student.classLetter}</td>
                                         <td className="px-6 py-4">{student.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</td>
-                                        {isTeacher && (
-                                            <td className="px-6 py-4">
-                                                <button onClick={() => handleOpenModal(student)} className="text-primary-600 hover:text-primary-800">
-                                                    {icons.edit}
-                                                </button>
-                                            </td>
-                                        )}
+                                        <td className="px-6 py-4">
+                                            <button onClick={() => handleOpenModal(student)} className="text-primary-600 hover:text-primary-800">
+                                                {icons.edit}
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}

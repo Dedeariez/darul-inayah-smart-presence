@@ -17,7 +17,7 @@ const Header: React.FC = () => {
                         <p className="font-semibold text-gray-800 dark:text-white">{user?.name}</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{user?.role}</p>
                     </div>
-                    <Button onClick={logout} variant="secondary" size-sm="true">
+                    <Button onClick={logout} variant="secondary">
                         Logout
                     </Button>
                 </div>

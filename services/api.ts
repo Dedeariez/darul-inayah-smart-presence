@@ -1,40 +1,147 @@
-
 import { createClient } from '@supabase/supabase-js';
-import { User, Student, AttendanceRecord, HistoryLog } from '../types';
+import { User, Student, AttendanceRecord, HistoryLog, RegisterCredentials } from '../types';
+
+export type Database = {
+  public: {
+    Tables: {
+      attendance_records: {
+        Row: {
+          id: string
+          student_id: string
+          date: string
+          class_period: number
+          status: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          date: string
+          class_period: number
+          status: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          date?: string
+          class_period?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      history_logs: {
+        Row: {
+          id: string
+          timestamp: string
+          user_name: string
+          action: string
+        }
+        Insert: {
+          id?: string
+          timestamp?: string
+          user_name: string
+          action: string
+        }
+        Update: {
+          id?: string
+          timestamp?: string
+          user_name?: string
+          action?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          id: string
+          name: string
+          role: string
+        }
+        Insert: {
+          id: string
+          name: string
+          role: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      students: {
+        Row: {
+          id: string
+          name: string
+          nisn: string | null
+          date_of_birth: string | null
+          grade: string
+          class_letter: string
+          gender: string
+          parent_id: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          nisn?: string | null
+          date_of_birth?: string | null
+          grade: string
+          class_letter: string
+          gender: string
+          parent_id?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          nisn?: string | null
+          date_of_birth?: string | null
+          grade?: string
+          class_letter?: string
+          gender?: string
+          parent_id?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
 
 // --- Supabase Setup ---
-const supabaseUrl = 'https://eqohwhrliqnouukkvkzq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxb2h3aHJsaXFub3V1a2t2a3pxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4Mzc2NzksImV4cCI6MjA2ODQxMzY3OX0.fiIKlH9M9fhKlC60eAXvffkZqmZKY4vCJ5vK5KvM4OI';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = 'https://wliodivdqqeorbpniimv.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsaW9kaXZkcXFlb3JicG5paW12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNjQwNDQsImV4cCI6MjA2ODg0MDA0NH0.D-hJVhXPNLpexdenZU5QyCcewfWrqYXDCwMAQN8QEW8';
+const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
 // --- Helper Functions ---
-const fromSupabase = (data: any) => {
-    if (!data) return data;
-    const { class_letter, parent_id, student_id, user_name, class_period, ...rest } = data;
-    const result: any = { ...rest };
-    if (class_letter !== undefined) result.classLetter = class_letter;
-    if (parent_id !== undefined) result.parentId = parent_id;
-    if (student_id !== undefined) result.studentId = student_id;
-    if (user_name !== undefined) result.user = user_name;
-    if (class_period !== undefined) result.classPeriod = class_period;
-    return result;
-};
-
-const toSupabase = (data: any) => {
-    if (!data) return data;
-    const { classLetter, parentId, studentId, user, classPeriod, ...rest } = data;
-    const result: any = { ...rest };
-    if (classLetter !== undefined) result.class_letter = classLetter;
-    if (parentId !== undefined) result.parent_id = parentId;
-    if (studentId !== undefined) result.student_id = studentId;
-    if (user !== undefined) result.user_name = user;
-    if (classPeriod !== undefined) result.class_period = classPeriod;
-    return result;
-};
-
 const addHistory = async (userName: string, action: string) => {
     try {
-        await supabase.from('history_logs').insert({ user_name: userName, action });
+        await supabase.from('history_logs').insert([{ user_name: userName, action }]);
     } catch (error) {
         console.error("Failed to add history:", error);
     }
@@ -64,12 +171,39 @@ const authService = {
         .eq('id', data.user.id)
         .single();
     
-    if (profileError || !profile) throw new Error("Gagal mengambil profil pengguna.");
+    if (profileError || !profile) throw new Error("Gagal mengambil profil pengguna. Pastikan email Anda sudah terverifikasi.");
+    if (profile.role !== 'teacher') throw new Error("Hanya guru yang dapat login.");
 
     return { id: data.user.id, email: data.user.email!, name: profile.name, role: profile.role as User['role'] };
   },
   logout: async (): Promise<void> => {
     await supabase.auth.signOut();
+  },
+  register: async (credentials: RegisterCredentials): Promise<void> => {
+    const { name, email, password } = credentials;
+    const role = 'teacher';
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role,
+        },
+      },
+    });
+
+    if (error) {
+      if (error.message.includes("User already registered")) {
+        throw new Error("Email ini sudah terdaftar.");
+      }
+      console.error("Signup Error:", error);
+      if (error.message.includes("Database error saving new user")) {
+          throw new Error("Pendaftaran gagal karena kesalahan konfigurasi basis data. Silakan hubungi administrator.");
+      }
+      throw new Error(`Pendaftaran gagal: ${error.message}`);
+    }
   },
   getCurrentUser: async (): Promise<User | null> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -82,8 +216,7 @@ const authService = {
         .eq('id', user.id)
         .single();
 
-    if (error || !profile) {
-        console.error("Error fetching profile for current user:", error);
+    if (error || !profile || profile.role !== 'teacher') {
         return null;
     }
 
@@ -91,47 +224,83 @@ const authService = {
   }
 };
 
+const mapToStudent = (s: Database['public']['Tables']['students']['Row']): Student => ({
+    id: s.id,
+    name: s.name,
+    nisn: s.nisn || undefined,
+    dateOfBirth: s.date_of_birth || undefined,
+    grade: s.grade as Student['grade'],
+    classLetter: s.class_letter as Student['classLetter'],
+    gender: s.gender as Student['gender'],
+    parentId: s.parent_id || undefined
+});
+
 const studentService = {
   getStudents: async (): Promise<Student[]> => {
       const { data, error } = await supabase.from('students').select('*').order('name');
-      if (error) throw error;
-      return data.map(fromSupabase);
-  },
-  getStudentForParent: async (parentId: string): Promise<Student | null> => {
-      const { data, error } = await supabase.from('students').select('*').eq('parent_id', parentId).maybeSingle();
-      if (error) throw error;
-      return data ? fromSupabase(data) : null;
+      if (error || !data) throw error || new Error('No students found');
+      return data.map(mapToStudent);
   },
   addStudent: async (studentData: Omit<Student, 'id' | 'classLetter'>): Promise<Student> => {
-    const newStudentData = { ...studentData, class_letter: studentData.gender === 'L' ? 'A' : 'B' };
-    const { data, error } = await supabase.from('students').insert(toSupabase(newStudentData)).select().single();
-    if (error) throw error;
+    const studentToInsert: Database['public']['Tables']['students']['Insert'] = {
+      name: studentData.name,
+      nisn: studentData.nisn,
+      date_of_birth: studentData.dateOfBirth,
+      grade: studentData.grade,
+      gender: studentData.gender,
+      parent_id: studentData.parentId,
+      class_letter: studentData.gender === 'L' ? 'A' : 'B'
+    };
+    const { data, error } = await supabase.from('students').insert(studentToInsert).select().single();
+    if (error || !data) throw error || new Error('Failed to add student');
     addHistory(await getUserNameFromState(), `Menambahkan siswa baru: ${data.name}.`);
-    return fromSupabase(data);
+    return mapToStudent(data);
   },
   bulkAddStudents: async (studentsData: Omit<Student, 'id' | 'classLetter'>[]): Promise<void> => {
-    const newStudents = studentsData.map(s => ({ ...s, class_letter: s.gender === 'L' ? 'A' : 'B' }));
-    const { error } = await supabase.from('students').insert(newStudents.map(toSupabase));
+    const newStudents: Database['public']['Tables']['students']['Insert'][] = studentsData.map(s => ({ 
+        name: s.name,
+        nisn: s.nisn,
+        date_of_birth: s.dateOfBirth,
+        grade: s.grade,
+        gender: s.gender,
+        parent_id: s.parentId,
+        class_letter: s.gender === 'L' ? 'A' : 'B' 
+    }));
+    const { error } = await supabase.from('students').insert(newStudents);
     if (error) throw error;
     addHistory(await getUserNameFromState(), `Mengupload ${studentsData.length} siswa baru dari Excel.`);
   },
   updateStudent: async (id: string, updateData: Partial<Omit<Student, 'id'>>): Promise<Student> => {
-    let supabaseUpdateData: any = toSupabase(updateData);
-    if (updateData.gender) {
+    const supabaseUpdateData: Database['public']['Tables']['students']['Update'] = {};
+    if (updateData.name !== undefined) supabaseUpdateData.name = updateData.name;
+    if (updateData.nisn !== undefined) supabaseUpdateData.nisn = updateData.nisn;
+    if (updateData.dateOfBirth !== undefined) supabaseUpdateData.date_of_birth = updateData.dateOfBirth;
+    if (updateData.grade !== undefined) supabaseUpdateData.grade = updateData.grade;
+    if (updateData.parentId !== undefined) supabaseUpdateData.parent_id = updateData.parentId;
+    if (updateData.gender !== undefined) {
+        supabaseUpdateData.gender = updateData.gender;
         supabaseUpdateData.class_letter = updateData.gender === 'L' ? 'A' : 'B';
     }
+    
     const { data, error } = await supabase.from('students').update(supabaseUpdateData).eq('id', id).select().single();
-    if (error) throw error;
+    if (error || !data) throw error || new Error('Failed to update student.');
     addHistory(await getUserNameFromState(), `Mengupdate data siswa: ${data.name}.`);
-    return fromSupabase(data);
+    return mapToStudent(data);
   },
 };
 
 const attendanceService = {
   getAttendanceRecords: async (): Promise<AttendanceRecord[]> => {
       const { data, error } = await supabase.from('attendance_records').select('*, students(name)');
-      if (error) throw error;
-      return data.map(r => ({ ...fromSupabase(r), studentName: r.students.name }));
+      if (error || !data) throw error || new Error('Could not fetch attendance records.');
+      return data.map(r => ({
+          id: r.id,
+          studentId: r.student_id,
+          date: r.date,
+          classPeriod: r.class_period,
+          status: r.status as AttendanceRecord['status'],
+          studentName: (r as any).students?.name || 'Unknown'
+      }));
   },
   getAttendanceForClass: async (className: string, date: string, period: number): Promise<AttendanceRecord[]> => {
     const grade = className.substring(0, 2);
@@ -141,11 +310,23 @@ const attendanceService = {
     const studentIds = studentsInClass.map(s => s.id);
 
     const { data, error } = await supabase.from('attendance_records').select('*').in('student_id', studentIds).eq('date', date).eq('class_period', period);
-    if (error) throw error;
-    return data.map(fromSupabase);
+    if (error || !data) throw error || new Error('Could not fetch attendance for class');
+    return data.map(r => ({
+        id: r.id,
+        studentId: r.student_id,
+        date: r.date,
+        classPeriod: r.class_period,
+        status: r.status as AttendanceRecord['status'],
+        studentName: '' // Name is not fetched here, so default to empty
+    }));
   },
   saveAttendance: async (records: Omit<AttendanceRecord, 'id' | 'studentName'>[]): Promise<void> => {
-    const recordsToSave = records.map(r => toSupabase({ student_id: r.studentId, date: r.date, class_period: r.classPeriod, status: r.status }));
+    const recordsToSave: Database['public']['Tables']['attendance_records']['Insert'][] = records.map(r => ({ 
+        student_id: r.studentId, 
+        date: r.date, 
+        class_period: r.classPeriod, 
+        status: r.status 
+    }));
     const { error } = await supabase.from('attendance_records').upsert(recordsToSave, { onConflict: 'student_id,date,class_period' });
     if (error) throw error;
 
@@ -158,13 +339,73 @@ const attendanceService = {
   }
 };
 
+interface StudentSearchParams {
+    nisn?: string;
+    name?: string;
+    dateOfBirth?: string;
+}
+
+const publicService = {
+  findStudentAttendance: async (params: StudentSearchParams): Promise<{ student: Student, attendance: AttendanceRecord[] } | null> => {
+      let query = supabase.from('students').select('*');
+
+      if (params.nisn) {
+          query = query.eq('nisn', params.nisn);
+      } else if (params.name && params.dateOfBirth) {
+          query = query.eq('name', params.name).eq('date_of_birth', params.dateOfBirth);
+      } else {
+          return null;
+      }
+      
+      const { data: studentData, error: studentError } = await query.single();
+
+      if (studentError || !studentData) {
+          if (studentError && studentError.code !== 'PGRST116') {
+             console.error('Error fetching student:', studentError);
+             throw new Error('Gagal mengambil data siswa.');
+          }
+          return null; // Not found, but not an API error
+      }
+
+      const student: Student = mapToStudent(studentData);
+      
+      const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendance_records')
+          .select('*')
+          .eq('student_id', student.id)
+          .order('date', { ascending: false });
+
+      if (attendanceError) {
+          console.error('Error fetching attendance:', attendanceError);
+          throw new Error('Gagal mengambil data absensi.');
+      }
+      
+      const attendance: AttendanceRecord[] = attendanceData.map(r => ({
+          id: r.id,
+          studentId: r.student_id,
+          date: r.date,
+          classPeriod: r.class_period,
+          status: r.status as AttendanceRecord['status'],
+          studentName: student.name
+      }));
+      
+      return { student, attendance };
+  }
+};
+
 export const api = {
   auth: authService,
   students: studentService,
   attendance: attendanceService,
+  public: publicService,
   getHistory: async (): Promise<HistoryLog[]> => {
     const { data, error } = await supabase.from('history_logs').select('*').order('timestamp', { ascending: false }).limit(20);
-    if (error) throw error;
-    return data.map(fromSupabase);
+    if (error || !data) throw error || new Error('Could not fetch history');
+    return data.map(log => ({
+        id: log.id,
+        timestamp: new Date(log.timestamp),
+        user: log.user_name,
+        action: log.action
+    }));
   },
 };
