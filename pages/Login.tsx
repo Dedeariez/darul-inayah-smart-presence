@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -15,18 +14,36 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showResendVerification, setShowResendVerification] = useState(false);
   const { login } = useAuth();
 
-  const toggleView = (view: 'login' | 'register') => {
+  const resetMessages = () => {
     setError('');
     setSuccessMessage('');
+    setShowResendVerification(false);
+  };
+
+  const toggleView = (view: 'login' | 'register') => {
+    resetMessages();
     setIsLoginView(view === 'login');
+  };
+
+  const handleResendVerification = async () => {
+    resetMessages();
+    setIsLoading(true);
+    try {
+      await api.auth.resendVerification(email);
+      setSuccessMessage('Email verifikasi telah dikirim ulang. Silakan periksa kotak masuk Anda.');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccessMessage('');
+    resetMessages();
     setIsLoading(true);
     try {
       if (isLoginView) {
@@ -38,7 +55,13 @@ const Login: React.FC = () => {
         toggleView('login');
       }
     } catch (err) {
-      setError((err as Error).message);
+      const errorMessage = (err as Error).message;
+      if (errorMessage === 'EMAIL_NOT_VERIFIED') {
+        setError('Login gagal. Email Anda belum diverifikasi. Silakan cek kotak masuk Anda.');
+        setShowResendVerification(true);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -98,7 +121,13 @@ const Login: React.FC = () => {
             {error && <p className="text-sm text-red-600 text-center">{error}</p>}
             {successMessage && <p className="text-sm text-green-600 text-center">{successMessage}</p>}
 
-            <Button type="submit" className="w-full" isLoading={isLoading}>
+            {showResendVerification && (
+              <Button type="button" variant="secondary" className="w-full" onClick={handleResendVerification} isLoading={isLoading}>
+                Kirim Ulang Email Verifikasi
+              </Button>
+            )}
+
+            <Button type="submit" className="w-full" isLoading={isLoading} disabled={showResendVerification}>
               {isLoginView ? 'Login' : 'Daftar'}
             </Button>
           </form>

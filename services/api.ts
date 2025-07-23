@@ -1,6 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { User, Student, AttendanceRecord, HistoryLog, RegisterCredentials } from '../types';
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 export type Database = {
   public: {
     Tables: {
@@ -26,15 +34,7 @@ export type Database = {
           class_period?: number
           status?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "attendance_records_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       history_logs: {
         Row: {
@@ -69,19 +69,10 @@ export type Database = {
           role: string
         }
         Update: {
-          id?: string
           name?: string
           role?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       students: {
         Row: {
@@ -150,7 +141,12 @@ const addHistory = async (userName: string, action: string) => {
 const getUserNameFromState = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-        const { data: profile } = await supabase.from('profiles').select('name').eq('id', user.id).single();
+        const { data: profile, error } = await supabase.from('profiles').select('name').eq('id', user.id).single();
+        if (error) {
+            console.error("Failed to get user name for history log:", error);
+            // Return a default name if profile fetch fails, to avoid breaking history logging
+            return 'Pengguna';
+        }
         return profile?.name || 'Pengguna';
     }
     return 'Sistem';
@@ -162,7 +158,12 @@ const getUserNameFromState = async () => {
 const authService = {
   login: async (email: string, pass: string): Promise<User> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) throw new Error('Email atau password salah.');
+    if (error) {
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        throw new Error('EMAIL_NOT_VERIFIED');
+      }
+      throw new Error('Email atau password salah.');
+    }
     if (!data.user) throw new Error("Login gagal, pengguna tidak ditemukan.");
 
     const { data: profile, error: profileError } = await supabase
@@ -171,7 +172,22 @@ const authService = {
         .eq('id', data.user.id)
         .single();
     
-    if (profileError || !profile) throw new Error("Gagal mengambil profil pengguna. Pastikan email Anda sudah terverifikasi.");
+    if (profileError) {
+        if (profileError.code === 'PGRST116') {
+            // PGRST116 means no rows were found. This is the most likely cause of the error.
+            // The user exists in auth, but not in profiles. This can happen if they signed up
+            // before the database trigger was active.
+            throw new Error("Profil pengguna tidak ditemukan. Akun Anda mungkin belum lengkap. Silakan hubungi administrator.");
+        }
+        // For any other database error, show a generic message.
+        throw new Error(`Gagal mengambil data profil: ${profileError.message}`);
+    }
+
+    if (!profile) {
+      // This is a fallback case, but the profileError check above should catch it.
+      throw new Error("Profil pengguna tidak ditemukan. Silakan hubungi administrator.");
+    }
+    
     if (profile.role !== 'teacher') throw new Error("Hanya guru yang dapat login.");
 
     return { id: data.user.id, email: data.user.email!, name: profile.name, role: profile.role as User['role'] };
@@ -181,7 +197,7 @@ const authService = {
   },
   register: async (credentials: RegisterCredentials): Promise<void> => {
     const { name, email, password } = credentials;
-    const role = 'teacher';
+    const role = credentials.role || 'teacher';
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -203,6 +219,15 @@ const authService = {
           throw new Error("Pendaftaran gagal karena kesalahan konfigurasi basis data. Silakan hubungi administrator.");
       }
       throw new Error(`Pendaftaran gagal: ${error.message}`);
+    }
+  },
+  resendVerification: async (email: string): Promise<void> => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+    if (error) {
+      throw new Error(`Gagal mengirim ulang verifikasi: ${error.message}`);
     }
   },
   getCurrentUser: async (): Promise<User | null> => {
@@ -291,15 +316,31 @@ const studentService = {
 
 const attendanceService = {
   getAttendanceRecords: async (): Promise<AttendanceRecord[]> => {
-      const { data, error } = await supabase.from('attendance_records').select('*, students(name)');
-      if (error || !data) throw error || new Error('Could not fetch attendance records.');
-      return data.map(r => ({
+      // Refactored to avoid server-side join which may cause 500 errors.
+      // 1. Fetch all students and create a map for quick lookup.
+      const { data: students, error: studentError } = await supabase.from('students').select('id, name');
+      if (studentError) {
+          console.error("Error fetching students for attendance join:", studentError);
+          throw new Error('Gagal mengambil data siswa untuk absensi.');
+      }
+      const studentMap = new Map((students || []).map(s => [s.id, s.name]));
+
+      // 2. Fetch all attendance records.
+      const { data: records, error: recordError } = await supabase.from('attendance_records').select('*');
+      if (recordError) {
+          console.error("Error fetching attendance records:", recordError);
+          throw new Error('Gagal mengambil data absensi.');
+      }
+      if (!records) return [];
+
+      // 3. Join the data on the client side.
+      return records.map(r => ({
           id: r.id,
           studentId: r.student_id,
           date: r.date,
           classPeriod: r.class_period,
           status: r.status as AttendanceRecord['status'],
-          studentName: (r as any).students?.name || 'Unknown'
+          studentName: studentMap.get(r.student_id) || 'Siswa tidak dikenal'
       }));
   },
   getAttendanceForClass: async (className: string, date: string, period: number): Promise<AttendanceRecord[]> => {
@@ -307,6 +348,7 @@ const attendanceService = {
     const classLetter = className.substring(2);
     const { data: studentsInClass, error: studentError } = await supabase.from('students').select('id').eq('grade', grade).eq('class_letter', classLetter);
     if(studentError) throw studentError;
+    if (!studentsInClass) return [];
     const studentIds = studentsInClass.map(s => s.id);
 
     const { data, error } = await supabase.from('attendance_records').select('*').in('student_id', studentIds).eq('date', date).eq('class_period', period);
@@ -380,7 +422,7 @@ const publicService = {
           throw new Error('Gagal mengambil data absensi.');
       }
       
-      const attendance: AttendanceRecord[] = attendanceData.map(r => ({
+      const attendance: AttendanceRecord[] = (attendanceData || []).map(r => ({
           id: r.id,
           studentId: r.student_id,
           date: r.date,
