@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
 import { Student, StudentExcelRow } from '../types';
@@ -6,9 +7,8 @@ import { useAuth } from '../App';
 import toast from 'react-hot-toast';
 import Spinner from '../components/common/Spinner';
 import Modal from '../components/common/Modal';
-import { PlusCircleIcon, UploadIcon, Trash2Icon, EditIcon, SearchIcon } from '../components/Icons';
-
-declare const XLSX: any;
+import * as XLSX from 'xlsx';
+import { PlusCircleIcon, UploadIcon, Trash2Icon, EditIcon, SearchIcon, DownloadIcon } from '../components/Icons';
 
 const PAGE_SIZE = 15;
 
@@ -31,7 +31,7 @@ const StudentForm = ({ student, onSave, onCancel }: { student?: Student | null, 
             kelas_final,
             gender,
             nisn: nisn || null,
-            tanggal_lahir: tanggalLahir
+            tanggal_lahir: tanggalLahir || null
         };
 
         try {
@@ -80,8 +80,8 @@ const StudentForm = ({ student, onSave, onCancel }: { student?: Student | null, 
                 <input type="text" value={nisn} onChange={e => setNisn(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm" />
             </div>
             <div>
-                <label className="block text-sm font-medium text-gray-700">Tanggal Lahir</label>
-                <input type="date" value={tanggalLahir} onChange={e => setTanggalLahir(e.target.value)} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm" />
+                <label className="block text-sm font-medium text-gray-700">Tanggal Lahir (Opsional)</label>
+                <input type="date" value={tanggalLahir || ''} onChange={e => setTanggalLahir(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm" />
             </div>
             <div className="flex justify-end gap-2 pt-4">
                 <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50">Batal</button>
@@ -125,7 +125,6 @@ const UploadStudents = ({ onUpload, onCancel }: { onUpload: () => void, onCancel
                 
                 const result = await api.uploadStudents(json, user.id);
                 
-                // Enhanced user feedback
                 if (result.successCount > 0 && result.errorCount === 0) {
                     toast.success(`${result.successCount} siswa berhasil diunggah.`);
                 } else if (result.successCount > 0 && result.errorCount > 0) {
@@ -152,12 +151,24 @@ const UploadStudents = ({ onUpload, onCancel }: { onUpload: () => void, onCancel
 
     return (
         <div>
-            <p className="text-sm text-gray-600 mb-4">Pastikan file Excel memiliki kolom: NAMA_LENGKAP, KELAS (10/11/12), JENIS_KELAMIN ('L'/'P'), NISN (opsional), TANGGAL_LAHIR (YYYY-MM-DD).</p>
+            <p className="text-sm text-gray-600 mb-4">Pastikan file Excel memiliki kolom: NAMA_LENGKAP, KELAS (10/11/12), JENIS_KELAMIN ('L'/'P'), NISN (opsional), TANGGAL_LAHIR (opsional, format YYYY-MM-DD).</p>
+            
+            <div className="mb-4">
+              <a 
+                  href="/template_data_siswa.xlsx"
+                  download="template_data_siswa.xlsx"
+                  className="inline-flex items-center gap-x-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+              >
+                  <DownloadIcon className="h-5 w-5 text-gray-500" />
+                  Unduh Template Excel
+              </a>
+            </div>
+            
             <input type="file" onChange={handleFileChange} accept=".xlsx, .xls" className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100" />
             <div className="flex justify-end gap-2 pt-6">
                 <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50">Batal</button>
                 <button onClick={handleUpload} disabled={isUploading || !file} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md shadow-sm hover:bg-primary-700 disabled:opacity-50">
-                    {isUploading ? <><Spinner size="5" color="white" /> Mengunggah...</> : 'Unggah File'}
+                    {isUploading ? <><Spinner size="5" color="white" /> Mengunggah...</> : <><UploadIcon className="h-5 w-5" /> Unggah File</>}
                 </button>
             </div>
         </div>
@@ -219,7 +230,6 @@ const StudentsManagementPage = () => {
                 await api.deleteStudent(student.id);
                 await api.addActivityLog(user.id, `menghapus data siswa ${student.nama_lengkap}`);
                 toast.success('Siswa berhasil dihapus.');
-                // Refresh data
                 if (students.length === 1 && currentPage > 1) {
                   setCurrentPage(currentPage - 1);
                 } else {
@@ -288,7 +298,7 @@ const StudentsManagementPage = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{student.nama_lengkap}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.kelas_final}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.nisn || '-'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.tanggal_lahir}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.tanggal_lahir || '-'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex justify-end gap-4">
                                                 <button onClick={() => handleEditStudent(student)} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5"/></button>

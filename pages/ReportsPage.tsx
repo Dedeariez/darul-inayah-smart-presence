@@ -4,10 +4,10 @@ import * as api from '../services/api';
 import { Student, AttendanceRecord } from '../types';
 import toast from 'react-hot-toast';
 import Spinner from '../components/common/Spinner';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 import { DownloadIcon } from '../components/Icons';
-
-declare const XLSX: any;
-declare const jspdf: any;
 
 type ReportData = (Student & { attendance_records: AttendanceRecord[] })[];
 
@@ -65,6 +65,7 @@ const ReportsPage = () => {
                 'Total Sakit': summary['Sakit'] || 0,
                 'Total Izin': summary['Izin'] || 0,
                 'Total Alfa': summary['Alfa'] || 0,
+                'Total Tidur': summary['Tidur'] || 0,
                 'Total Pertemuan': student.attendance_records.length
             };
         });
@@ -76,12 +77,12 @@ const ReportsPage = () => {
     };
 
     const downloadPdf = () => {
-        const doc = new jspdf.jsPDF();
+        const doc = new jsPDF();
         doc.text(`Laporan Absensi - ${selectedClass}`, 14, 16);
         doc.setFontSize(10);
         doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 22);
 
-        const tableColumn = ["Nama Siswa", "Kelas", "Hadir", "Sakit", "Izin", "Alfa", "Total"];
+        const tableColumn = ["Nama Siswa", "Kelas", "Hadir", "Sakit", "Izin", "Alfa", "Tidur", "Total"];
         const tableRows: any[] = [];
 
         reportData.forEach(student => {
@@ -97,12 +98,13 @@ const ReportsPage = () => {
                 summary['Sakit'] || 0,
                 summary['Izin'] || 0,
                 summary['Alfa'] || 0,
+                summary['Tidur'] || 0,
                 student.attendance_records.length
             ];
             tableRows.push(studentData);
         });
 
-        doc.autoTable({
+        (doc as any).autoTable({
             head: [tableColumn],
             body: tableRows,
             startY: 30,
@@ -153,12 +155,13 @@ const ReportsPage = () => {
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sakit</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Izin</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Alfa</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tidur</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Kehadiran (%)</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {loading ? (
-                                <tr><td colSpan={7} className="text-center py-8"><Spinner /></td></tr>
+                                <tr><td colSpan={8} className="text-center py-8"><Spinner /></td></tr>
                             ) : reportData.length > 0 ? (
                                 reportData.map(student => {
                                     const total = student.attendance_records.length;
@@ -166,6 +169,7 @@ const ReportsPage = () => {
                                     const sakit = student.attendance_records.filter(r => r.status === 'Sakit').length;
                                     const izin = student.attendance_records.filter(r => r.status === 'Izin').length;
                                     const alfa = student.attendance_records.filter(r => r.status === 'Alfa').length;
+                                    const tidur = student.attendance_records.filter(r => r.status === 'Tidur').length;
                                     const percentage = total > 0 ? ((hadir / total) * 100).toFixed(1) : '0.0';
                                     return (
                                         <tr key={student.id}>
@@ -175,12 +179,13 @@ const ReportsPage = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{sakit}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{izin}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{alfa}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{tidur}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{percentage}%</td>
                                         </tr>
                                     );
                                 })
                             ) : (
-                                <tr><td colSpan={7} className="text-center py-8 text-gray-500">Tidak ada data untuk laporan ini. Klik "Buat Laporan" untuk memulai.</td></tr>
+                                <tr><td colSpan={8} className="text-center py-8 text-gray-500">Tidak ada data untuk laporan ini. Klik "Buat Laporan" untuk memulai.</td></tr>
                             )}
                         </tbody>
                     </table>

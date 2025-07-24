@@ -9,6 +9,7 @@ const statusStyles: Record<AttendanceStatus, string> = {
     Sakit: 'bg-yellow-100 text-yellow-800',
     Izin: 'bg-blue-100 text-blue-800',
     Alfa: 'bg-red-100 text-red-800',
+    Tidur: 'bg-gray-100 text-gray-800',
 };
 
 const ParentPortalPage = () => {
@@ -22,6 +23,10 @@ const ParentPortalPage = () => {
     const records = student.attendance_records || [];
     const totalRecords = records.length;
     const presentCount = records.filter(r => r.status === 'Hadir').length;
+    const sickCount = records.filter(r => r.status === 'Sakit').length;
+    const permitCount = records.filter(r => r.status === 'Izin').length;
+    const alfaCount = records.filter(r => r.status === 'Alfa').length;
+    const sleepCount = records.filter(r => r.status === 'Tidur').length;
     const attendancePercentage = totalRecords > 0 ? ((presentCount / totalRecords) * 100).toFixed(1) : 'N/A';
     
     // Sort records by date descending
@@ -43,8 +48,8 @@ const ParentPortalPage = () => {
 
                     <div className="p-6">
                         <h3 className="text-lg font-medium text-gray-900">Ringkasan Kehadiran</h3>
-                        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                            <div className="bg-gray-100 p-4 rounded-lg">
+                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+                             <div className="bg-gray-100 p-4 rounded-lg">
                                 <p className="text-sm font-medium text-gray-500">Persentase Hadir</p>
                                 <p className="mt-1 text-3xl font-semibold text-primary-600">{attendancePercentage}%</p>
                             </div>
@@ -52,13 +57,21 @@ const ParentPortalPage = () => {
                                 <p className="text-sm font-medium text-green-600">Hadir</p>
                                 <p className="mt-1 text-3xl font-semibold text-green-700">{presentCount}</p>
                             </div>
-                            <div className="bg-yellow-50 p-4 rounded-lg">
-                                <p className="text-sm font-medium text-yellow-600">Sakit/Izin</p>
-                                <p className="mt-1 text-3xl font-semibold text-yellow-700">{records.filter(r => r.status === 'Sakit' || r.status === 'Izin').length}</p>
+                             <div className="bg-yellow-50 p-4 rounded-lg">
+                                <p className="text-sm font-medium text-yellow-600">Sakit</p>
+                                <p className="mt-1 text-3xl font-semibold text-yellow-700">{sickCount}</p>
+                            </div>
+                             <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-sm font-medium text-blue-600">Izin</p>
+                                <p className="mt-1 text-3xl font-semibold text-blue-700">{permitCount}</p>
                             </div>
                             <div className="bg-red-50 p-4 rounded-lg">
                                 <p className="text-sm font-medium text-red-600">Alfa</p>
-                                <p className="mt-1 text-3xl font-semibold text-red-700">{records.filter(r => r.status === 'Alfa').length}</p>
+                                <p className="mt-1 text-3xl font-semibold text-red-700">{alfaCount}</p>
+                            </div>
+                             <div className="bg-gray-50 p-4 rounded-lg">
+                                <p className="text-sm font-medium text-gray-600">Tidur</p>
+                                <p className="mt-1 text-3xl font-semibold text-gray-700">{sleepCount}</p>
                             </div>
                         </div>
                     </div>

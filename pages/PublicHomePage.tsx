@@ -45,13 +45,18 @@ const PublicHomePage = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) {
-        toast.error(error.message || 'Email atau kata sandi salah.');
-    } else {
-        toast.success('Login berhasil!');
-        navigate('/dashboard');
+    try {
+        const { error } = await signIn(email, password);
+        if (error) {
+            toast.error(error.message || 'Email atau kata sandi salah.');
+        } else {
+            toast.success('Login berhasil!');
+            navigate('/dashboard');
+        }
+    } catch (err: any) {
+        toast.error(err.message || 'Terjadi kesalahan tak terduga saat login.');
+    } finally {
+        setLoading(false);
     }
   };
 

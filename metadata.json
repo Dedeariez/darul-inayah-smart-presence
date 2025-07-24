@@ -1,5 +1,6 @@
 {
   "name": "Darul Inayah Smart-Presence",
   "description": "A web application for managing student attendance at Madrasah Aliyah Darul Inayah, with different access levels for teachers and parents.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "prompt": ""
 }

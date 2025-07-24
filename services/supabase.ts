@@ -1,17 +1,16 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types';
 
-// Use environment variables for production readiness.
-// In a real Vercel deployment, these would be set in the project settings.
-// For this sandboxed environment, we provide fallback values to prevent a crash.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://osudjmbrnspbcddufvdg.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zdWRqbWJybnNwYmNkZHVmdmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzNzc2OTksImV4cCI6MjA2ODk1MzY5OX0.zj_1m7L9GFZ7XSgkzn_qsCpuekcXSJRjmXnfDx36IwE';
+// Ambil variabel dari environment
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-
+// PENTING: Lakukan pengecekan sebelum membuat klien
 if (!supabaseUrl || !supabaseAnonKey) {
-  // This error will still be thrown if credentials are not provided in a real environment.
-  throw new Error('Supabase URL and Anon Key must be provided in environment variables.');
+  // Berikan pesan error yang jelas jika variabel tidak ditemukan
+  // Ini akan sangat membantu saat debugging di lingkungan mana pun
+  throw new Error("Variabel Supabase (VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY) tidak ditemukan. Pastikan sudah diatur di Secrets atau .env.local");
 }
 
+// Buat dan ekspor klien hanya jika variabel sudah ada
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);

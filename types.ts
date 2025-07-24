@@ -13,12 +13,12 @@ export interface Student {
   nama_lengkap: string;
   kelas_final: string;
   nisn: string | null;
-  tanggal_lahir: string;
+  tanggal_lahir: string | null;
   gender: 'L' | 'P';
   attendance_records?: AttendanceRecord[];
 }
 
-export type AttendanceStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alfa';
+export type AttendanceStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | 'Tidur';
 
 export interface AttendanceRecord {
   id: number;
@@ -69,7 +69,7 @@ export interface Database {
           nama_lengkap: string;
           kelas_final: string;
           nisn: string | null;
-          tanggal_lahir: string;
+          tanggal_lahir: string | null;
           gender: 'L' | 'P';
         };
         Insert: {
@@ -77,8 +77,8 @@ export interface Database {
           created_at?: string;
           nama_lengkap: string;
           kelas_final: string;
-          nisn: string | null;
-          tanggal_lahir: string;
+          nisn?: string | null;
+          tanggal_lahir?: string | null;
           gender: 'L' | 'P';
         };
         Update: {
@@ -87,7 +87,7 @@ export interface Database {
           nama_lengkap?: string;
           kelas_final?: string;
           nisn?: string | null;
-          tanggal_lahir?: string;
+          tanggal_lahir?: string | null;
           gender?: 'L' | 'P';
         };
         Relationships: [];
@@ -98,7 +98,7 @@ export interface Database {
           created_at: string;
           student_id: number;
           date: string;
-          status: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa';
+          status: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | 'Tidur';
           subject_hour: number;
           recorded_by_teacher_id: string;
         };
@@ -107,7 +107,7 @@ export interface Database {
           created_at?: string;
           student_id: number;
           date: string;
-          status: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa';
+          status: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | 'Tidur';
           subject_hour: number;
           recorded_by_teacher_id: string;
         };
@@ -116,11 +116,24 @@ export interface Database {
           created_at?: string;
           student_id?: number;
           date?: string;
-          status?: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa';
+          status?: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | 'Tidur';
           subject_hour?: number;
           recorded_by_teacher_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'attendance_records_recorded_by_teacher_id_fkey';
+            columns: ['recorded_by_teacher_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'attendance_records_student_id_fkey';
+            columns: ['student_id'];
+            referencedRelation: 'students';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       activity_logs: {
         Row: {
@@ -141,7 +154,14 @@ export interface Database {
           user_id?: string;
           action_description?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'activity_logs_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       profiles: {
         Row: {

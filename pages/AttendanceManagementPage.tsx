@@ -6,7 +6,7 @@ import { useAuth } from '../App';
 import toast from 'react-hot-toast';
 import Spinner from '../components/common/Spinner';
 
-const ATTENDANCE_STATUSES: AttendanceStatus[] = ['Hadir', 'Sakit', 'Izin', 'Alfa'];
+const ATTENDANCE_STATUSES: AttendanceStatus[] = ['Hadir', 'Sakit', 'Izin', 'Alfa', 'Tidur'];
 
 const AttendanceManagementPage = () => {
   const [classes, setClasses] = useState<string[]>([]);
@@ -116,7 +116,7 @@ const AttendanceManagementPage = () => {
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                       <fieldset>
                                           <legend className="sr-only">Status</legend>
-                                          <div className="flex items-center space-x-4">
+                                          <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
                                               {ATTENDANCE_STATUSES.map(status => (
                                                   <div key={status} className="flex items-center">
                                                       <input

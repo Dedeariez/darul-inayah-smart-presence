@@ -46,8 +46,6 @@ export const getUserProfile = async (userId: string): Promise<UserProfile> => {
         .eq('id', userId)
         .single();
     if (error || !data) {
-      // Throw a more specific error to handle cases where the profile might not exist yet
-      // due to replication delay after signup.
       if (error?.code === 'PGRST116') {
          throw new Error("Profil pengguna belum siap. Silakan coba lagi sesaat.");
       }
@@ -64,7 +62,6 @@ export const getStudents = async (searchTerm: string, page: number = 1): Promise
 
     let query = supabase
       .from('students')
-      // Optimization: Select specific columns instead of '*'
       .select('id, created_at, nama_lengkap, kelas_final, nisn, tanggal_lahir, gender', { count: 'exact' });
     
     if (searchTerm) {
@@ -113,23 +110,19 @@ export const uploadStudents = async (rows: StudentExcelRow[], userId: string): P
             uploadErrors.push(`Baris ${rowNum}: JENIS_KELAMIN harus 'L' atau 'P'.`);
             return;
         }
-        if (!row.TANGGAL_LAHIR) {
-            uploadErrors.push(`Baris ${rowNum}: TANGGAL_LAHIR kosong.`);
-            return;
-        }
-
-        let dob: string;
+        
+        let dob: string | null = null;
         try {
-            let date: Date;
-            if (typeof row.TANGGAL_LAHIR === 'number') {
-                // Handle Excel's serial date format
-                date = new Date(Math.round((row.TANGGAL_LAHIR - 25569) * 86400 * 1000));
-            } else {
-                 // Handle string date format (YYYY-MM-DD or other standard formats)
-                 date = new Date(row.TANGGAL_LAHIR);
+            if (row.TANGGAL_LAHIR) { 
+                let date: Date;
+                if (typeof row.TANGGAL_LAHIR === 'number') {
+                    date = new Date(Math.round((row.TANGGAL_LAHIR - 25569) * 86400 * 1000));
+                } else {
+                     date = new Date(row.TANGGAL_LAHIR);
+                }
+                if (isNaN(date.getTime())) throw new Error('Invalid date value');
+                dob = date.toISOString().split('T')[0];
             }
-            if (isNaN(date.getTime())) throw new Error('Invalid date value');
-            dob = date.toISOString().split('T')[0];
         } catch(e) {
             uploadErrors.push(`Baris ${rowNum}: Format TANGGAL_LAHIR tidak valid.`);
             return;
@@ -176,7 +169,7 @@ export const getClasses = async (): Promise<string[]> => {
 export const getAttendanceDataForClass = async (className: string, date: string, subjectHour: number) => {
     const { data: studentsData, error: studentsError } = await supabase
         .from('students')
-        .select('id, nama_lengkap, kelas_final')
+        .select('*')
         .eq('kelas_final', className)
         .order('nama_lengkap');
     if (studentsError) throw new Error("Gagal memuat data siswa untuk kelas ini.");
@@ -201,9 +194,9 @@ export const getAttendanceDataForClass = async (className: string, date: string,
         });
     }
 
-    studentIds.forEach(id => {
-        if (!newAttendance[id]) {
-            newAttendance[id] = 'Hadir'; // Default to 'Hadir'
+    studentsData.forEach(s => {
+        if (!newAttendance[s.id]) {
+            newAttendance[s.id] = 'Hadir'; // Default to 'Hadir'
         }
     });
 
@@ -240,10 +233,6 @@ interface ReportFilter {
 }
 
 export const getReportData = async (filters: ReportFilter) => {
-    // Correctly implement a LEFT JOIN behavior by fetching students and their attendance separately
-    // to ensure all students in a class are included in the report, even if they have no attendance records.
-    
-    // 1. Fetch all students matching the class filter
     let studentsQuery = supabase.from('students').select('*');
     if (filters.selectedClass && filters.selectedClass !== 'Semua Kelas') {
         studentsQuery = studentsQuery.eq('kelas_final', filters.selectedClass);
@@ -255,7 +244,6 @@ export const getReportData = async (filters: ReportFilter) => {
 
     const studentIds = students.map(s => s.id);
 
-    // 2. Fetch all relevant attendance records for those students in the date range
     const { data: records, error: recordError } = await supabase
         .from('attendance_records')
         .select('student_id, date, status')
@@ -265,7 +253,6 @@ export const getReportData = async (filters: ReportFilter) => {
 
     if (recordError) throw new Error(`Gagal memuat data absensi untuk laporan: ${recordError.message}`);
     
-    // 3. Map attendance records to their respective students on the client-side
     const recordsByStudentId = new Map<number, any[]>();
     (records || []).forEach(r => {
         if (!recordsByStudentId.has(r.student_id)) {
@@ -290,36 +277,56 @@ interface ParentAccessInput {
     tanggalLahir: string;
 }
 export const findStudentForParent = async ({ nisn, namaLengkap, tanggalLahir }: ParentAccessInput): Promise<Student> => {
-    // This is more performant as it fetches the student and their records in a single API call.
-    let query = supabase.from('students').select(`
-        *,
-        attendance_records ( * )
-    `);
+    let studentData: Student | null = null;
 
-    let studentData: any; // Use 'any' temporarily because of the join
-
+    // Step 1: Find the student
     if (nisn) {
-        const { data, error } = await query.eq('nisn', nisn.trim()).single();
+        const { data, error } = await supabase.from('students').select('*').eq('nisn', nisn.trim()).single();
         if (error || !data) throw new Error('Siswa dengan NISN tersebut tidak ditemukan.');
         studentData = data;
     } else {
-        const { data, error } = await query
-            .ilike('nama_lengkap', namaLengkap.trim())
-            .eq('tanggal_lahir', tanggalLahir);
+        let query = supabase.from('students')
+            .select('*')
+            .ilike('nama_lengkap', namaLengkap.trim());
+
+        // Only add date filter if it's provided, as it is now optional
+        if (tanggalLahir) {
+          query = query.eq('tanggal_lahir', tanggalLahir)
+        }
+        
+        const { data, error } = await query;
 
         if (error) throw new Error(`Gagal mengambil data: ${error.message}`);
         if (!data || data.length === 0) throw new Error('Siswa tidak ditemukan. Periksa kembali nama dan tanggal lahir.');
 
-        // Security enhancement: Prevent data leakage if multiple students match.
         if (data.length > 1) {
             throw new Error('Ditemukan lebih dari satu siswa. Silakan gunakan NISN untuk hasil yang lebih akurat.');
         }
-
         studentData = data[0];
     }
     
-    // The attendance_records are now part of the studentData object from the single query.
-    return studentData as Student;
+    if (!studentData) {
+        throw new Error('Siswa tidak ditemukan.');
+    }
+
+    const finalStudentData = studentData;
+    
+    // Step 2: Fetch attendance records for the found student
+    const { data: records, error: recordError } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('student_id', finalStudentData.id);
+
+    if (recordError) {
+        throw new Error('Gagal memuat riwayat absensi.');
+    }
+    
+    // Step 3: Attach records to student object and return
+    const studentWithRecords: Student = {
+      ...finalStudentData,
+      attendance_records: records || []
+    };
+    return studentWithRecords;
 };
 
 
@@ -332,19 +339,38 @@ export const addActivityLog = async (userId: string, action: string) => {
         if (error) throw error;
     } catch (error: any) {
         console.error("Gagal menambahkan log aktivitas:", error.message);
-        // Do not throw, as this is a non-critical operation
     }
 };
 
 export const getLatestActivityLogs = async (limit: number = 10): Promise<ActivityLog[]> => {
-    const { data, error } = await supabase
+    const { data: logs, error } = await supabase
         .from('activity_logs')
-        // Optimization: Select specific columns and the related profile name
-        .select('id, created_at, user_id, action_description, profiles(full_name)')
+        .select('id, created_at, user_id, action_description')
         .order('created_at', { ascending: false })
         .limit(limit);
+        
     if (error) throw new Error("Gagal memuat log aktivitas.");
-    return (data as ActivityLog[]) || [];
+    if (!logs || logs.length === 0) return [];
+
+    const userIds = [...new Set(logs.map(log => log.user_id))];
+    const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+    if (profileError) {
+        console.error("Gagal memuat profil untuk log: ", profileError.message);
+        return logs as ActivityLog[];
+    }
+
+    const profileMap = new Map(profiles.map(p => [p.id, p]));
+    
+    const logsWithProfiles = logs.map(log => ({
+        ...log,
+        profiles: profileMap.get(log.user_id) ? { full_name: profileMap.get(log.user_id)!.full_name } : undefined
+    }));
+    
+    return logsWithProfiles;
 };
 
 export const subscribeToActivityLogs = (callback: (log: ActivityLog) => void) => {
@@ -356,16 +382,22 @@ export const subscribeToActivityLogs = (callback: (log: ActivityLog) => void) =>
             table: 'activity_logs'
         }, async (payload) => {
             try {
-                // Fetch the new log with the user's full name joined.
-                const { data, error } = await supabase
-                    .from('activity_logs')
-                    .select('id, created_at, user_id, action_description, profiles(full_name)')
-                    .eq('id', payload.new.id)
+                const newLog = payload.new as Omit<ActivityLog, 'profiles'>;
+                
+                const { data: profileData, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('full_name')
+                    .eq('id', newLog.user_id)
                     .single();
-                if (error) throw error;
-                if (data) {
-                    callback(data as ActivityLog);
-                }
+
+                if (profileError) throw profileError;
+
+                const logWithProfile: ActivityLog = {
+                  ...newLog,
+                  profiles: profileData ? { full_name: profileData.full_name } : undefined,
+                };
+                
+                callback(logWithProfile);
             } catch (error: any) {
                  console.error("Gagal mengambil detail log baru:", error.message);
             }
