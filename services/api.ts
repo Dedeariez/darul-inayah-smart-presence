@@ -244,7 +244,7 @@ export const getReportData = async (filters: ReportFilter) => {
     // to ensure all students in a class are included in the report, even if they have no attendance records.
     
     // 1. Fetch all students matching the class filter
-    let studentsQuery = supabase.from('students').select('id, nama_lengkap, kelas_final');
+    let studentsQuery = supabase.from('students').select('*');
     if (filters.selectedClass && filters.selectedClass !== 'Semua Kelas') {
         studentsQuery = studentsQuery.eq('kelas_final', filters.selectedClass);
     }
@@ -340,7 +340,7 @@ export const getLatestActivityLogs = async (limit: number = 10): Promise<Activit
     const { data, error } = await supabase
         .from('activity_logs')
         // Optimization: Select specific columns and the related profile name
-        .select('id, created_at, action_description, profiles(full_name)')
+        .select('id, created_at, user_id, action_description, profiles(full_name)')
         .order('created_at', { ascending: false })
         .limit(limit);
     if (error) throw new Error("Gagal memuat log aktivitas.");
@@ -359,7 +359,7 @@ export const subscribeToActivityLogs = (callback: (log: ActivityLog) => void) =>
                 // Fetch the new log with the user's full name joined.
                 const { data, error } = await supabase
                     .from('activity_logs')
-                    .select('id, created_at, action_description, profiles(full_name)')
+                    .select('id, created_at, user_id, action_description, profiles(full_name)')
                     .eq('id', payload.new.id)
                     .single();
                 if (error) throw error;
