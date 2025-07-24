@@ -1,38 +1,53 @@
-
 import React, { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+
 import { api } from '../services/api';
 import { Student, AttendanceRecord } from '../types';
 import Button from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 
-const Reports: React.FC = () => {
+// Hapus "React.FC" untuk gaya penulisan komponen yang lebih modern.
+function Reports() {
     const [reportData, setReportData] = useState<AttendanceRecord[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [loading, setLoading] = useState(false);
     const [filters, setFilters] = useState({
         class: 'all',
-        month: new Date().toISOString().slice(0, 7), // YYYY-MM
+        month: new Date().toISOString().slice(0, 7), // Format: YYYY-MM
     });
 
+    // Mengambil data siswa hanya sekali saat komponen dimuat.
     useEffect(() => {
-        api.students.getStudents().then(setStudents);
+        api.students.getStudents().then(setStudents).catch(err => {
+            console.error("Gagal mengambil data siswa:", err);
+            alert("Tidak dapat memuat data siswa.");
+        });
     }, []);
 
     const handleGenerateReport = async () => {
         setLoading(true);
         try {
+            // REKOMENDASI PERFORMA:
+            // Sebaiknya, Anda tidak mengambil semua data absensi.
+            // Buatlah fungsi baru di `api.ts` yang menerima filter bulan dan kelas,
+            // sehingga query ke database menjadi lebih efisien.
+            // Contoh: const filteredRecords = await api.attendance.getFilteredRecords(filters);
+
             const allRecords = await api.attendance.getAttendanceRecords();
             let filteredRecords = allRecords.filter(r => r.date.startsWith(filters.month));
-            
-            if(filters.class !== 'all'){
-                 const classStudents = students.filter(s => `${s.grade}${s.classLetter}` === filters.class);
-                 const classStudentIds = new Set(classStudents.map(s => s.id));
-                 filteredRecords = filteredRecords.filter(r => classStudentIds.has(r.studentId));
+
+            if (filters.class !== 'all') {
+                const classStudents = students.filter(s => `${s.grade}${s.classLetter}` === filters.class);
+                const classStudentIds = new Set(classStudents.map(s => s.id));
+                filteredRecords = filteredRecords.filter(r => classStudentIds.has(r.studentId));
             }
 
+            // Proses pemetaan nama siswa tetap di sini
             const recordsWithNames = filteredRecords.map(r => ({
                 ...r,
-                studentName: students.find(s => s.id === r.studentId)?.name || 'Unknown Student'
+                studentName: students.find(s => s.id === r.studentId)?.name || 'Siswa Tidak Dikenal'
             }));
 
             setReportData(recordsWithNames);
@@ -43,7 +58,7 @@ const Reports: React.FC = () => {
             setLoading(false);
         }
     };
-    
+
     const downloadExcel = () => {
         const dataToExport = reportData.map(r => ({
             'Nama Siswa': r.studentName,
@@ -51,20 +66,25 @@ const Reports: React.FC = () => {
             'Jam Ke-': r.classPeriod,
             'Status': r.status,
         }));
-        const worksheet = (window as any).XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = (window as any).XLSX.utils.book_new();
-        (window as any).XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Absensi");
-        (window as any).XLSX.writeFile(workbook, `Laporan_Absensi_${filters.class}_${filters.month}.xlsx`);
+        
+        // Menggunakan modul XLSX yang sudah diimpor, bukan dari `window`.
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Absensi");
+        XLSX.writeFile(workbook, `Laporan_Absensi_${filters.class}_${filters.month}.xlsx`);
     };
-    
+
     const downloadPdf = () => {
-        const doc = new (window as any).jspdf.jsPDF();
+        // Menggunakan modul jsPDF dan autoTable yang sudah diimpor.
+        const doc = new jsPDF();
         doc.text(`Laporan Absensi - Kelas ${filters.class} - Bulan ${filters.month}`, 14, 16);
-        (doc as any).autoTable({
+        
+        autoTable(doc, {
             head: [['Nama Siswa', 'Tanggal', 'Jam Ke-', 'Status']],
             body: reportData.map(r => [r.studentName, r.date, r.classPeriod, r.status]),
             startY: 22,
         });
+        
         doc.save(`Laporan_Absensi_${filters.class}_${filters.month}.pdf`);
     };
 
@@ -74,14 +94,14 @@ const Reports: React.FC = () => {
             
             <Card>
                 <CardContent className="p-4 flex flex-wrap gap-4 items-center">
-                     <div>
+                    <div>
                         <label className="text-sm font-medium">Kelas</label>
                         <select value={filters.class} onChange={e => setFilters({...filters, class: e.target.value})} className="w-full h-10 border border-gray-300 rounded-md px-3 mt-1">
                             <option value="all">Semua Kelas</option>
                             {['10A', '10B', '11A', '11B', '12A', '12B'].map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
-                     <div>
+                    <div>
                         <label className="text-sm font-medium">Bulan</label>
                         <input type="month" value={filters.month} onChange={e => setFilters({...filters, month: e.target.value})} className="w-full h-10 border border-gray-300 rounded-md px-3 mt-1"/>
                     </div>

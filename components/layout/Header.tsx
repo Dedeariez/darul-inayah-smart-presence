@@ -1,21 +1,25 @@
-
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 
-const Header: React.FC = () => {
+/**
+ * Komponen Header untuk menampilkan informasi pengguna dan tombol logout.
+ * Perbaikan: Menggunakan deklarasi "function" standar, bukan React.FC,
+ * untuk konsistensi dengan praktik React modern.
+ */
+function Header() {
     const { user, logout } = useAuth();
 
     return (
-        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 fixed w-full top-0 z-30 sm:ml-64">
-            <div className="flex justify-between items-center">
+        <header className="fixed top-0 z-30 w-full border-b border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:ml-64">
+            <div className="flex items-center justify-between">
                 <div>
-                    {/* Can add breadcrumbs or page title here later */}
+                    {/* Komponen Breadcrumbs atau judul halaman bisa ditambahkan di sini nanti */}
                 </div>
                 <div className="flex items-center space-x-4">
                     <div className="text-right">
                         <p className="font-semibold text-gray-800 dark:text-white">{user?.name}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{user?.role}</p>
+                        <p className="text-sm capitalize text-gray-500 dark:text-gray-400">{user?.role}</p>
                     </div>
                     <Button onClick={logout} variant="secondary">
                         Logout
@@ -24,6 +28,6 @@ const Header: React.FC = () => {
             </div>
         </header>
     );
-};
+}
 
 export default Header;

@@ -1,7 +1,21 @@
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { cn } from '../../lib/utils';
+
+// Props untuk komponen Sidebar, menerima status dan fungsi dari Layout
+interface SidebarProps {
+  isOpen: boolean;
+  toggleSidebar: () => void;
+}
+
+// Props untuk komponen SidebarLink, ditambahkan onClick untuk menutup sidebar di mobile
+interface SidebarLinkProps {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}
 
 const icons = {
   dashboard: (
@@ -18,7 +32,8 @@ const icons = {
   ),
 };
 
-const SidebarLink: React.FC<{ to: string, icon: React.ReactNode, label: string }> = ({ to, icon, label }) => {
+// Komponen link di dalam sidebar
+function SidebarLink({ to, icon, label, onClick }: SidebarLinkProps) {
     const commonClasses = "flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group";
     const activeClasses = "bg-gray-200 dark:bg-gray-700";
 
@@ -26,7 +41,8 @@ const SidebarLink: React.FC<{ to: string, icon: React.ReactNode, label: string }
         <li>
             <NavLink 
                 to={to} 
-                className={({ isActive }) => `${commonClasses} ${isActive ? activeClasses : ''}`}
+                className={({ isActive }) => cn(commonClasses, isActive && activeClasses)}
+                onClick={onClick} // Menutup sidebar saat link diklik di mobile
             >
                 {icon}
                 <span className="ms-3">{label}</span>
@@ -35,27 +51,56 @@ const SidebarLink: React.FC<{ to: string, icon: React.ReactNode, label: string }
     );
 }
 
-const Sidebar: React.FC = () => {
+// Komponen utama Sidebar
+function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     const { user } = useAuth();
     
+    // Fungsi untuk menutup sidebar setelah navigasi, khusus di layar kecil
+    const handleLinkClick = () => {
+        if (window.innerWidth < 640) { // Tailwind's 'sm' breakpoint
+            toggleSidebar();
+        }
+    };
+
     return (
-        <aside id="logo-sidebar" className="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0" aria-label="Sidebar">
-            <div className="h-full px-3 py-4 overflow-y-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-                <a href="#" className="flex items-center ps-2.5 mb-5">
-                    <img src="favicon.svg" className="h-8 me-3" alt="MA Darul Inayah Logo" />
-                    <span className="self-center text-xl font-semibold whitespace-nowrap dark:text-white">MA Darul Inayah</span>
-                </a>
-                <ul className="space-y-2 font-medium">
-                    <SidebarLink to="/" icon={icons.dashboard} label="Dashboard" />
-                    {user?.role === 'teacher' && (
-                        <>
-                            <SidebarLink to="/students" icon={icons.students} label="Data Siswa" />
-                            <SidebarLink to="/attendance" icon={icons.attendance} label="Absensi" />
-                            <SidebarLink to="/reports" icon={icons.reports} label="Laporan" />
-                        </>
-                    )}
-                </ul>
-            </div>
-        </aside>
+        <>
+            {/* Backdrop overlay yang muncul saat sidebar terbuka di mobile */}
+            {isOpen && (
+                <div 
+                    className="fixed inset-0 z-30 bg-black opacity-50 sm:hidden"
+                    onClick={toggleSidebar}
+                    aria-hidden="true"
+                ></div>
+            )}
+
+            <aside 
+                id="logo-sidebar" 
+                className={cn(
+                    "fixed top-0 left-0 z-40 w-64 h-screen transition-transform",
+                    isOpen ? "translate-x-0" : "-translate-x-full", // Tampilkan/sembunyikan berdasarkan state
+                    "sm:translate-x-0" // Selalu tampil di layar besar
+                )} 
+                aria-label="Sidebar"
+            >
+                <div className="h-full px-3 py-4 overflow-y-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+                    <a href="#" className="flex items-center ps-2.5 mb-5">
+                        <img src="favicon.svg" className="h-8 me-3" alt="MA Darul Inayah Logo" />
+                        <span className="self-center text-xl font-semibold whitespace-nowrap dark:text-white">MA Darul Inayah</span>
+                    </a>
+                    <ul className="space-y-2 font-medium">
+                        <SidebarLink to="/" icon={icons.dashboard} label="Dashboard" onClick={handleLinkClick} />
+                        {user?.role === 'teacher' && (
+                            <>
+                                <SidebarLink to="/students" icon={icons.students} label="Data Siswa" onClick={handleLinkClick} />
+                                <SidebarLink to="/attendance" icon={icons.attendance} label="Absensi" onClick={handleLinkClick} />
+                                <SidebarLink to="/reports" icon={icons.reports} label="Laporan" onClick={handleLinkClick} />
+                            </>
+                        )}
+                    </ul>
+                </div>
+            </aside>
+        </>
     );
 };
+
+export default Sidebar;

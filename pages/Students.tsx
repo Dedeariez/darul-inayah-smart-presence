@@ -1,5 +1,6 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
+import * as XLSX from 'xlsx'; // Impor pustaka XLSX
+
 import { api } from '../services/api';
 import { Student, Gender, Grade } from '../types';
 import Button from '../components/ui/Button';
@@ -7,14 +8,22 @@ import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 
+// Objek ikon tidak perlu diubah
 const icons = {
     edit: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>,
     upload: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
     add: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>,
 };
 
+// Props untuk StudentForm
+interface StudentFormProps {
+    student: Partial<Student> | null;
+    onSave: (student: Omit<Student, 'id' | 'classLetter'>) => void;
+    onCancel: () => void;
+}
 
-const StudentForm: React.FC<{ student: Partial<Student> | null, onSave: (student: Omit<Student, 'id' | 'classLetter'>) => void, onCancel: () => void }> = ({ student, onSave, onCancel }) => {
+// Menggunakan deklarasi "function" untuk konsistensi
+function StudentForm({ student, onSave, onCancel }: StudentFormProps) {
     const [formData, setFormData] = useState({
         name: student?.name || '',
         nisn: student?.nisn || '',
@@ -30,7 +39,12 @@ const StudentForm: React.FC<{ student: Partial<Student> | null, onSave: (student
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData as Omit<Student, 'id' | 'classLetter'>);
+        // Memastikan tipe data yang dikirim sesuai
+        onSave({
+            ...formData,
+            grade: formData.grade as Grade,
+            gender: formData.gender as Gender,
+        });
     };
 
     return (
@@ -68,10 +82,10 @@ const StudentForm: React.FC<{ student: Partial<Student> | null, onSave: (student
             </div>
         </form>
     );
-};
+}
 
-
-const Students: React.FC = () => {
+// Menggunakan deklarasi "function" untuk konsistensi
+function Students() {
     const [students, setStudents] = useState<Student[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,6 +99,8 @@ const Students: React.FC = () => {
             setStudents(data);
         } catch (error) {
             console.error("Failed to fetch students:", error);
+            // Memberi tahu pengguna jika terjadi error
+            alert("Gagal memuat data siswa. Silakan coba lagi.");
         } finally {
             setLoading(false);
         }
@@ -111,7 +127,7 @@ const Students: React.FC = () => {
             } else {
                 await api.students.addStudent(data);
             }
-            fetchStudents();
+            fetchStudents(); // Memuat ulang data setelah berhasil
             handleCloseModal();
         } catch (error) {
             alert(`Gagal menyimpan siswa: ${(error as Error).message}`);
@@ -126,18 +142,30 @@ const Students: React.FC = () => {
         reader.onload = async (e) => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
-                const workbook = (window as any).XLSX.read(data, { type: 'array' });
+                // Menggunakan modul XLSX yang diimpor, bukan dari `window`
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
-                const json = (window as any).XLSX.utils.sheet_to_json(worksheet);
+                const json = XLSX.utils.sheet_to_json(worksheet);
 
-                const newStudents = json.map((row: any) => ({
-                    name: row.Nama,
-                    grade: String(row.Kelas) as Grade,
-                    gender: row['Jenis Kelamin'] as Gender,
-                    nisn: row.NISN ? String(row.NISN) : undefined,
-                    dateOfBirth: row['Tanggal Lahir'] ? new Date((row['Tanggal Lahir'] - (25567 + 1)) * 86400 * 1000).toISOString().split('T')[0] : undefined,
-                }));
+                const newStudents = json.map((row: any) => {
+                    // Penanganan tanggal yang lebih andal
+                    let dateOfBirth: string | undefined = undefined;
+                    if (row['Tanggal Lahir'] instanceof Date) {
+                        // Mengonversi tanggal ke format YYYY-MM-DD dengan aman
+                        const date = row['Tanggal Lahir'];
+                        date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+                        dateOfBirth = date.toISOString().split('T')[0];
+                    }
+
+                    return {
+                        name: row.Nama,
+                        grade: String(row.Kelas) as Grade,
+                        gender: row['Jenis Kelamin'] as Gender,
+                        nisn: row.NISN ? String(row.NISN) : undefined,
+                        dateOfBirth: dateOfBirth,
+                    };
+                });
                 
                 await api.students.bulkAddStudents(newStudents);
                 alert(`${newStudents.length} siswa berhasil di-upload!`);
@@ -148,7 +176,7 @@ const Students: React.FC = () => {
             }
         };
         reader.readAsArrayBuffer(file);
-        event.target.value = ''; // Reset file input
+        event.target.value = ''; // Reset input file agar bisa upload file yang sama lagi
     };
 
     const filteredStudents = students.filter(s => {
@@ -173,7 +201,7 @@ const Students: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 overflow-x-auto pb-2">
                 <Button variant={filter === 'all' ? 'primary' : 'secondary'} onClick={() => setFilter('all')}>Semua</Button>
                 {['10A', '10B', '11A', '11B', '12A', '12B'].map(c => (
                     <Button key={c} variant={filter === c ? 'primary' : 'secondary'} onClick={() => setFilter(c)}>{c}</Button>
