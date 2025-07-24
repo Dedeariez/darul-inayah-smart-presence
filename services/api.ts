@@ -1,12 +1,7 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { User, Student, AttendanceRecord, HistoryLog, RegisterCredentials } from '../types';
 
-/**
- * Tipe Database ini sebaiknya digenerate secara otomatis menggunakan Supabase CLI
- * untuk memastikan akurasi dan kemudahan maintenance.
- * Jalankan perintah: `npx supabase gen types typescript --project-id <ID_PROYEK_ANDA> > types/supabase.ts`
- * * Saya telah memperbarui tipe ini secara manual untuk mencerminkan struktur yang ada.
- */
 export type Database = {
   public: {
     Tables: {
@@ -25,7 +20,22 @@ export type Database = {
           class_period: number
           status: string
         }
-        Update: Partial<Database['public']['Tables']['attendance_records']['Row']>
+        Update: {
+          id?: string
+          student_id?: string
+          date?: string
+          class_period?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       history_logs: {
         Row: {
@@ -40,7 +50,13 @@ export type Database = {
           user_name: string
           action: string
         }
-        Update: Partial<Database['public']['Tables']['history_logs']['Row']>
+        Update: {
+          id?: string
+          timestamp?: string
+          user_name?: string
+          action?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -53,7 +69,11 @@ export type Database = {
           name: string
           role: string
         }
-        Update: Partial<Database['public']['Tables']['profiles']['Row']>
+        Update: {
+          name?: string
+          role?: string
+        }
+        Relationships: []
       }
       students: {
         Row: {
@@ -76,84 +96,64 @@ export type Database = {
           gender: string
           parent_id?: string | null
         }
-        Update: Partial<Database['public']['Tables']['students']['Row']>
+        Update: {
+          id?: string
+          name?: string
+          nisn?: string | null
+          date_of_birth?: string | null
+          grade?: string
+          class_letter?: string
+          gender?: string
+          parent_id?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
-      // REKOMENDASI PERFORMA: Buat VIEW di Supabase untuk menggabungkan data absensi dan siswa.
-      // SQL untuk membuat VIEW ada di penjelasan.
-      attendance_details: {
-        Row: {
-          id: string | null
-          student_id: string | null
-          student_name: string | null
-          date: string | null
-          class_period: number | null
-          status: string | null
-          grade: string | null
-          class_letter: string | null
-        }
-      }
+      [key: string]: never
     }
     Functions: {
       get_user_role: {
-        Args: Record<string, never>
+        Args: {}
         Returns: string
       }
     }
-    Enums: Record<string, never>
-    CompositeTypes: Record<string, never>
+    Enums: {
+      [key: string]: never
+    }
+    CompositeTypes: {
+      [key: string]: never
+    }
   }
 }
 
 
-// --- [PERBAIKAN KEAMANAN] Supabase Setup ---
-// Ambil kredensial dari environment variables, bukan hardcode di sini.
-// Buat file .env di root folder proyek Anda.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error("Supabase URL and Anon Key must be provided in .env file");
-}
-
+// --- Supabase Setup ---
+const supabaseUrl = 'https://wliodivdqqeorbpniimv.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsaW9kaXZkcXFlb3JicG5paW12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNjQwNDQsImV4cCI6MjA2ODg0MDA0NH0.D-hJVhXPNLpexdenZU5QyCcewfWrqYXDCwMAQN8QEW8';
 const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
-
-// --- [PERBAIKAN EFISIENSI] Helper Functions ---
-// Cache nama pengguna agar tidak perlu query berulang kali ke database.
-let cachedUserName: string | null = null;
-
-const getUserNameFromState = async (): Promise<string> => {
-  if (cachedUserName) {
-    return cachedUserName;
-  }
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    const { data: profile, error } = await supabase.from('profiles').select('name').eq('id', user.id).single();
-    if (error || !profile) {
-      console.error("Failed to get user name for history log:", error);
-      return 'Pengguna'; // Default
-    }
-    cachedUserName = profile.name;
-    return profile.name;
-  }
-  return 'Sistem'; // Jika tidak ada user yang login
-};
-
-// Fungsi untuk membersihkan cache saat logout
-const clearUserCache = () => {
-  cachedUserName = null;
-};
-
-const addHistory = async (action: string) => {
+// --- Helper Functions ---
+const addHistory = async (userName: string, action: string) => {
     try {
-        const userName = await getUserNameFromState();
-        await supabase.from('history_logs').insert([{ user_name: userName, action }]);
+        await supabase.from('history_logs').insert({ user_name: userName, action });
     } catch (error) {
         console.error("Failed to add history:", error);
     }
+};
+
+const getUserNameFromState = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        const { data: profile, error } = await supabase.from('profiles').select('name').eq('id', user.id).single();
+        if (error) {
+            console.error("Failed to get user name for history log:", error);
+            // Return a default name if profile fetch fails, to avoid breaking history logging
+            return 'Pengguna';
+        }
+        return profile?.name || 'Pengguna';
+    }
+    return 'Sistem';
 };
 
 
@@ -177,30 +177,39 @@ const authService = {
         .single();
     
     if (profileError) {
-        if (profileError.code === 'PGRST116') {
-            throw new Error("Gagal mengambil profil. Pastikan akun Anda telah diaktifkan oleh administrator.");
+        if (profileError.message.includes('stack depth limit exceeded')) {
+            console.error("FATAL: Supabase RLS recursion detected during login. The database schema is outdated. The user must run the SQL script from README.md to fix this.");
+            throw new Error("Terjadi kesalahan konfigurasi pada database (rekursi RLS). Silakan jalankan script SQL terbaru dari file README.md di editor SQL Supabase Anda untuk memperbaikinya.");
         }
-        throw new Error(`Kesalahan database: ${profileError.message}`);
+        if (profileError.code === 'PGRST116') {
+            throw new Error("Profil pengguna tidak ditemukan. Ini bisa terjadi jika pendaftaran tidak berhasil sepenuhnya. Silakan coba daftar ulang atau hubungi administrator.");
+        }
+        throw new Error(`Gagal mengambil data profil karena kesalahan teknis: ${profileError.message}`);
     }
 
-    if (profile.role !== 'teacher') throw new Error("Hanya guru yang dapat login.");
+    if (!profile) {
+      throw new Error("Profil pengguna tidak ditemukan. Silakan hubungi administrator.");
+    }
     
-    // Simpan nama pengguna di cache setelah login berhasil
-    cachedUserName = profile.name;
+    if (profile.role !== 'teacher') throw new Error("Hanya guru yang dapat login.");
 
     return { id: data.user.id, email: data.user.email!, name: profile.name, role: profile.role as User['role'] };
   },
   logout: async (): Promise<void> => {
     await supabase.auth.signOut();
-    clearUserCache(); // Hapus cache saat logout
   },
   register: async (credentials: RegisterCredentials): Promise<void> => {
     const { name, email, password } = credentials;
+    const role = credentials.role || 'teacher';
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { name, role: 'teacher' },
+        data: {
+          name,
+          role,
+        },
       },
     });
 
@@ -208,14 +217,18 @@ const authService = {
       if (error.message.includes("User already registered")) {
         throw new Error("Email ini sudah terdaftar.");
       }
+      console.error("Signup Error:", error);
       if (error.message.includes("Database error saving new user")) {
-          throw new Error("Pendaftaran gagal karena kesalahan konfigurasi basis data. Hubungi administrator.");
+          throw new Error("Pendaftaran gagal karena kesalahan konfigurasi basis data. Silakan hubungi administrator.");
       }
       throw new Error(`Pendaftaran gagal: ${error.message}`);
     }
   },
   resendVerification: async (email: string): Promise<void> => {
-    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
     if (error) {
       throw new Error(`Gagal mengirim ulang verifikasi: ${error.message}`);
     }
@@ -231,12 +244,24 @@ const authService = {
         .eq('id', user.id)
         .single();
 
-    if (error || !profile || profile.role !== 'teacher') {
+    if (error) {
+        if (error.message.includes('stack depth limit exceeded')) {
+             // THIS IS A CRITICAL DATABASE CONFIGURATION ERROR.
+             // It happens when an RLS policy creates an infinite loop.
+             // The SQL script in README.md is designed to prevent this.
+             // The user MUST run the latest version of the script.
+             console.error("FATAL: Supabase RLS recursion detected. The database schema is outdated. The user must run the SQL script from README.md to fix this.");
+             throw new Error("RLS_RECURSION_ERROR");
+        }
+        
+        console.error(`GetCurrentUser Error: ${(error as Error).message}`);
         return null;
     }
-    
-    // Simpan nama pengguna di cache
-    cachedUserName = profile.name;
+
+    if (!profile || profile.role !== 'teacher') {
+        await supabase.auth.signOut();
+        return null;
+    }
 
     return { id: user.id, email: user.email!, name: profile.name, role: profile.role as User['role'] };
   }
@@ -256,103 +281,119 @@ const mapToStudent = (s: Database['public']['Tables']['students']['Row']): Stude
 const studentService = {
   getStudents: async (): Promise<Student[]> => {
       const { data, error } = await supabase.from('students').select('*').order('name');
-      if (error) throw new Error(`Gagal mengambil data siswa: ${error.message}`);
+      if (error || !data) throw error || new Error('No students found');
       return data.map(mapToStudent);
   },
   addStudent: async (studentData: Omit<Student, 'id' | 'classLetter'>): Promise<Student> => {
-    const studentToInsert = {
-      ...studentData,
-      date_of_birth: studentData.dateOfBirth,
+    const studentToInsert: Database['public']['Tables']['students']['Insert'] = {
+      name: studentData.name,
+      nisn: studentData.nisn ?? null,
+      date_of_birth: studentData.dateOfBirth ?? null,
+      grade: studentData.grade,
+      gender: studentData.gender,
+      parent_id: studentData.parentId ?? null,
       class_letter: studentData.gender === 'L' ? 'A' : 'B'
     };
     const { data, error } = await supabase.from('students').insert(studentToInsert).select().single();
-    if (error || !data) throw new Error(`Gagal menambah siswa: ${error?.message}`);
-    addHistory(`Menambahkan siswa baru: ${data.name}.`);
+    if (error || !data) throw error || new Error('Failed to add student');
+    addHistory(await getUserNameFromState(), `Menambahkan siswa baru: ${data.name}.`);
     return mapToStudent(data);
   },
   bulkAddStudents: async (studentsData: Omit<Student, 'id' | 'classLetter'>[]): Promise<void> => {
-    const newStudents = studentsData.map(s => ({ 
-        ...s,
-        date_of_birth: s.dateOfBirth,
+    const newStudents: Database['public']['Tables']['students']['Insert'][] = studentsData.map(s => ({ 
+        name: s.name,
+        nisn: s.nisn ?? null,
+        date_of_birth: s.dateOfBirth ?? null,
+        grade: s.grade,
+        gender: s.gender,
+        parent_id: s.parentId ?? null,
         class_letter: s.gender === 'L' ? 'A' : 'B' 
     }));
     const { error } = await supabase.from('students').insert(newStudents);
-    if (error) throw new Error(`Gagal mengupload siswa: ${error.message}`);
-    addHistory(`Mengupload ${studentsData.length} siswa baru dari Excel.`);
+    if (error) throw error;
+    addHistory(await getUserNameFromState(), `Mengupload ${studentsData.length} siswa baru dari Excel.`);
   },
   updateStudent: async (id: string, updateData: Partial<Omit<Student, 'id'>>): Promise<Student> => {
-    const supabaseUpdateData: Partial<Database['public']['Tables']['students']['Row']> = {
-        name: updateData.name,
-        nisn: updateData.nisn,
-        date_of_birth: updateData.dateOfBirth,
-        grade: updateData.grade,
-        parent_id: updateData.parentId,
-        gender: updateData.gender,
-        // Logika penentuan kelas otomatis
-        ...(updateData.gender && { class_letter: updateData.gender === 'L' ? 'A' : 'B' }),
-    };
+    const supabaseUpdateData: Database['public']['Tables']['students']['Update'] = {};
+    if (updateData.name !== undefined) supabaseUpdateData.name = updateData.name;
+    if (updateData.nisn !== undefined) supabaseUpdateData.nisn = updateData.nisn ?? null;
+    if (updateData.dateOfBirth !== undefined) supabaseUpdateData.date_of_birth = updateData.dateOfBirth ?? null;
+    if (updateData.grade !== undefined) supabaseUpdateData.grade = updateData.grade;
+    if (updateData.parentId !== undefined) supabaseUpdateData.parent_id = updateData.parentId ?? null;
+    if (updateData.gender !== undefined) {
+        supabaseUpdateData.gender = updateData.gender;
+        if(updateData.grade){
+            supabaseUpdateData.class_letter = updateData.gender === 'L' ? 'A' : 'B';
+        }
+    }
     
     const { data, error } = await supabase.from('students').update(supabaseUpdateData).eq('id', id).select().single();
-    if (error || !data) throw new Error(`Gagal mengupdate siswa: ${error?.message}`);
-    addHistory(`Mengupdate data siswa: ${data.name}.`);
+    if (error || !data) throw error || new Error('Failed to update student.');
+    addHistory(await getUserNameFromState(), `Mengupdate data siswa: ${data.name}.`);
     return mapToStudent(data);
   },
 };
 
 const attendanceService = {
-  // [PERBAIKAN PERFORMA] Menggunakan VIEW untuk mengambil data absensi
   getAttendanceRecords: async (): Promise<AttendanceRecord[]> => {
-      const { data, error } = await supabase.from('attendance_details').select('*');
-      if (error) {
-          console.error("Error fetching attendance details view:", error);
-          throw new Error('Gagal mengambil data absensi. Pastikan VIEW "attendance_details" sudah dibuat di database.');
+      const { data: students, error: studentError } = await supabase.from('students').select('id, name');
+      if (studentError) {
+          console.error("Error fetching students for attendance join:", studentError);
+          throw new Error('Gagal mengambil data siswa untuk absensi.');
       }
-      
-      return (data || []).map(r => ({
-          id: r.id!,
-          studentId: r.student_id!,
-          date: r.date!,
-          classPeriod: r.class_period!,
+      const studentMap = new Map((students || []).map(s => [s.id, s.name]));
+
+      const { data: records, error: recordError } = await supabase.from('attendance_records').select('*');
+      if (recordError) {
+          console.error("Error fetching attendance records:", recordError);
+          throw new Error('Gagal mengambil data absensi.');
+      }
+      if (!records) return [];
+
+      return records.map(r => ({
+          id: r.id,
+          studentId: r.student_id,
+          date: r.date,
+          classPeriod: r.class_period,
           status: r.status as AttendanceRecord['status'],
-          studentName: r.student_name || 'Siswa tidak dikenal'
+          studentName: studentMap.get(r.student_id) || 'Siswa tidak dikenal'
       }));
   },
   getAttendanceForClass: async (className: string, date: string, period: number): Promise<AttendanceRecord[]> => {
     const grade = className.substring(0, 2);
     const classLetter = className.substring(2);
     const { data: studentsInClass, error: studentError } = await supabase.from('students').select('id').eq('grade', grade).eq('class_letter', classLetter);
-    if(studentError) throw new Error(`Gagal mengambil data siswa kelas: ${studentError.message}`);
-
+    if(studentError) throw studentError;
+    if (!studentsInClass || studentsInClass.length === 0) return [];
     const studentIds = studentsInClass.map(s => s.id);
-    if (studentIds.length === 0) return [];
 
     const { data, error } = await supabase.from('attendance_records').select('*').in('student_id', studentIds).eq('date', date).eq('class_period', period);
-    if (error) throw new Error(`Gagal mengambil absensi kelas: ${error.message}`);
-    
-    return data.map(r => ({
+    if (error) throw error
+    return (data || []).map(r => ({
         id: r.id,
         studentId: r.student_id,
         date: r.date,
         classPeriod: r.class_period,
         status: r.status as AttendanceRecord['status'],
-        studentName: '' // Nama tidak diperlukan di halaman ini
+        studentName: ''
     }));
   },
   saveAttendance: async (records: Omit<AttendanceRecord, 'id' | 'studentName'>[]): Promise<void> => {
-    const recordsToSave = records.map(r => ({ 
+    if(records.length === 0) return;
+    const recordsToSave: Database['public']['Tables']['attendance_records']['Insert'][] = records.map(r => ({ 
         student_id: r.studentId, 
         date: r.date, 
         class_period: r.classPeriod, 
         status: r.status 
     }));
     const { error } = await supabase.from('attendance_records').upsert(recordsToSave, { onConflict: 'student_id,date,class_period' });
-    if (error) throw new Error(`Gagal menyimpan absensi: ${error.message}`);
+    if (error) throw error;
 
     const firstRecord = records[0];
     if (firstRecord) {
         const { data: student } = await supabase.from('students').select('grade, class_letter').eq('id', firstRecord.studentId).single();
         const className = student ? `${student.grade}${student.class_letter}` : '';
-        addHistory(`Menyimpan absensi untuk kelas ${className} pada jam ke-${firstRecord.classPeriod}.`);
+        addHistory(await getUserNameFromState(), `Menyimpan absensi untuk kelas ${className} pada jam ke-${firstRecord.classPeriod}.`);
     }
   }
 };
@@ -364,7 +405,6 @@ interface StudentSearchParams {
 }
 
 const publicService = {
-  // Fungsi ini sebaiknya dijadikan RPC Function di Supabase untuk keamanan yang lebih baik
   findStudentAttendance: async (params: StudentSearchParams): Promise<{ student: Student, attendance: AttendanceRecord[] } | null> => {
       let query = supabase.from('students').select('*');
 
@@ -373,13 +413,13 @@ const publicService = {
       } else if (params.name && params.dateOfBirth) {
           query = query.eq('name', params.name).eq('date_of_birth', params.dateOfBirth);
       } else {
-          return null; // Tidak ada parameter yang cukup untuk mencari
+          throw new Error('Parameter pencarian tidak lengkap.');
       }
       
       const { data: studentData, error: studentError } = await query.single();
 
       if (studentError || !studentData) {
-          if (studentError && studentError.code !== 'PGRST116') { // PGRST116 = not found, itu bukan error
+          if (studentError && studentError.code !== 'PGRST116') {
              console.error('Error fetching student:', studentError);
              throw new Error('Gagal mengambil data siswa.');
           }
@@ -392,15 +432,14 @@ const publicService = {
           .from('attendance_records')
           .select('*')
           .eq('student_id', student.id)
-          .order('date', { ascending: false })
-          .limit(10); // Ambil 10 data terakhir saja untuk efisiensi
+          .order('date', { ascending: false });
 
       if (attendanceError) {
           console.error('Error fetching attendance:', attendanceError);
           throw new Error('Gagal mengambil data absensi.');
       }
       
-      const attendance = (attendanceData || []).map(r => ({
+      const attendance: AttendanceRecord[] = (attendanceData || []).map(r => ({
           id: r.id,
           studentId: r.student_id,
           date: r.date,
@@ -420,8 +459,8 @@ export const api = {
   public: publicService,
   getHistory: async (): Promise<HistoryLog[]> => {
     const { data, error } = await supabase.from('history_logs').select('*').order('timestamp', { ascending: false }).limit(20);
-    if (error) throw new Error(`Gagal mengambil riwayat: ${error.message}`);
-    return (data || []).map(log => ({
+    if (error || !data) throw error || new Error('Could not fetch history');
+    return data.map(log => ({
         id: log.id,
         timestamp: new Date(log.timestamp),
         user: log.user_name,
