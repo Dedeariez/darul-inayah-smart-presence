@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { User, Student, AttendanceRecord, HistoryLog, RegisterCredentials } from '../types';
 
@@ -34,7 +35,7 @@ export type Database = {
           class_period?: number
           status?: string
         }
-        Relationships: []
+        Relationships: unknown[]
       }
       history_logs: {
         Row: {
@@ -55,7 +56,7 @@ export type Database = {
           user_name?: string
           action?: string
         }
-        Relationships: []
+        Relationships: unknown[]
       }
       profiles: {
         Row: {
@@ -72,7 +73,7 @@ export type Database = {
           name?: string
           role?: string
         }
-        Relationships: []
+        Relationships: unknown[]
       }
       students: {
         Row: {
@@ -105,7 +106,7 @@ export type Database = {
           gender?: string
           parent_id?: string | null
         }
-        Relationships: []
+        Relationships: unknown[]
       }
     }
     Views: {
@@ -173,18 +174,16 @@ const authService = {
         .single();
     
     if (profileError) {
+        // Handle case where profile is not found (PGRST116)
         if (profileError.code === 'PGRST116') {
-            // PGRST116 means no rows were found. This is the most likely cause of the error.
-            // The user exists in auth, but not in profiles. This can happen if they signed up
-            // before the database trigger was active.
-            throw new Error("Profil pengguna tidak ditemukan. Akun Anda mungkin belum lengkap. Silakan hubungi administrator.");
+            throw new Error("Gagal mengambil profil pengguna. Pastikan akun Anda telah diaktifkan sepenuhnya oleh administrator.");
         }
-        // For any other database error, show a generic message.
-        throw new Error(`Gagal mengambil data profil: ${profileError.message}`);
+        // Handle other database errors, including the "stack depth" issue
+        throw new Error(`Gagal mengambil data profil karena kesalahan teknis. Silakan hubungi administrator dan laporkan: ${profileError.message}`);
     }
 
     if (!profile) {
-      // This is a fallback case, but the profileError check above should catch it.
+      // Fallback, should be caught by profileError with PGRST116
       throw new Error("Profil pengguna tidak ditemukan. Silakan hubungi administrator.");
     }
     
