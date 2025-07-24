@@ -197,7 +197,7 @@ export const getAttendanceDataForClass = async (className: string, date: string,
     const newAttendance: Record<number, AttendanceStatus> = {};
     if (attendanceData) {
         attendanceData.forEach(record => {
-            newAttendance[record.student_id] = record.status;
+            newAttendance[record.student_id] = record.status as AttendanceStatus;
         });
     }
 
@@ -290,47 +290,36 @@ interface ParentAccessInput {
     tanggalLahir: string;
 }
 export const findStudentForParent = async ({ nisn, namaLengkap, tanggalLahir }: ParentAccessInput): Promise<Student> => {
-    let query = supabase.from('students').select(`*`);
-    let studentData: Student | null = null;
+    // This is more performant as it fetches the student and their records in a single API call.
+    let query = supabase.from('students').select(`
+        *,
+        attendance_records ( * )
+    `);
+
+    let studentData: any; // Use 'any' temporarily because of the join
 
     if (nisn) {
-        const { data, error } = await query.eq('nisn', nisn).single();
+        const { data, error } = await query.eq('nisn', nisn.trim()).single();
         if (error || !data) throw new Error('Siswa dengan NISN tersebut tidak ditemukan.');
         studentData = data;
     } else {
         const { data, error } = await query
             .ilike('nama_lengkap', namaLengkap.trim())
             .eq('tanggal_lahir', tanggalLahir);
-            
+
         if (error) throw new Error(`Gagal mengambil data: ${error.message}`);
         if (!data || data.length === 0) throw new Error('Siswa tidak ditemukan. Periksa kembali nama dan tanggal lahir.');
-        
+
         // Security enhancement: Prevent data leakage if multiple students match.
         if (data.length > 1) {
             throw new Error('Ditemukan lebih dari satu siswa. Silakan gunakan NISN untuk hasil yang lebih akurat.');
         }
-        
+
         studentData = data[0];
     }
-
-    if (!studentData) {
-        // This case should be handled above, but as a safeguard.
-        throw new Error('Siswa tidak ditemukan.');
-    }
-
-    const { data: records, error: recordsError } = await supabase
-        .from('attendance_records')
-        .select('*')
-        .eq('student_id', studentData.id);
-
-    if (recordsError) {
-        console.error('Gagal memuat catatan absensi:', recordsError.message);
-        studentData.attendance_records = [];
-    } else {
-        studentData.attendance_records = records || [];
-    }
     
-    return studentData;
+    // The attendance_records are now part of the studentData object from the single query.
+    return studentData as Student;
 };
 
 
@@ -350,12 +339,12 @@ export const addActivityLog = async (userId: string, action: string) => {
 export const getLatestActivityLogs = async (limit: number = 10): Promise<ActivityLog[]> => {
     const { data, error } = await supabase
         .from('activity_logs')
-        // Optimization: Select specific columns
-        .select('id, created_at, action_description, user_profile:profiles(full_name)')
+        // Optimization: Select specific columns and the related profile name
+        .select('id, created_at, action_description, profiles(full_name)')
         .order('created_at', { ascending: false })
         .limit(limit);
     if (error) throw new Error("Gagal memuat log aktivitas.");
-    return (data as any) || [];
+    return (data as ActivityLog[]) || [];
 };
 
 export const subscribeToActivityLogs = (callback: (log: ActivityLog) => void) => {
@@ -370,12 +359,12 @@ export const subscribeToActivityLogs = (callback: (log: ActivityLog) => void) =>
                 // Fetch the new log with the user's full name joined.
                 const { data, error } = await supabase
                     .from('activity_logs')
-                    .select('id, created_at, action_description, user_profile:profiles(full_name)')
+                    .select('id, created_at, action_description, profiles(full_name)')
                     .eq('id', payload.new.id)
                     .single();
                 if (error) throw error;
                 if (data) {
-                    callback(data as any);
+                    callback(data as ActivityLog);
                 }
             } catch (error: any) {
                  console.error("Gagal mengambil detail log baru:", error.message);

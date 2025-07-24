@@ -35,7 +35,7 @@ export interface ActivityLog {
   created_at: string;
   user_id: string;
   action_description: string;
-  user_profile?: { full_name: string };
+  profiles?: { full_name: string };
 }
 
 export interface AuthContextType {
@@ -55,17 +55,9 @@ export type StudentExcelRow = {
   NAMA_LENGKAP: string;
   KELAS: number;
   JENIS_KELAMIN: 'L' | 'P';
-  NISN?: string;
-  TANGGAL_LAHIR: string | number;
+  NISN?: string | number;
+  TANGGAL_LAHIR?: string | number;
 };
-
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
 
 export interface Database {
   public: {
@@ -106,7 +98,7 @@ export interface Database {
           created_at: string;
           student_id: number;
           date: string;
-          status: AttendanceStatus;
+          status: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa';
           subject_hour: number;
           recorded_by_teacher_id: string;
         };
@@ -115,7 +107,7 @@ export interface Database {
           created_at?: string;
           student_id: number;
           date: string;
-          status: AttendanceStatus;
+          status: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa';
           subject_hour: number;
           recorded_by_teacher_id: string;
         };
@@ -124,26 +116,11 @@ export interface Database {
           created_at?: string;
           student_id?: number;
           date?: string;
-          status?: AttendanceStatus;
+          status?: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa';
           subject_hour?: number;
           recorded_by_teacher_id?: string;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'attendance_records_recorded_by_teacher_id_fkey',
-            columns: ['recorded_by_teacher_id'],
-            isOneToOne: false,
-            referencedRelation: 'profiles',
-            referencedColumns: ['id']
-          },
-          {
-            foreignKeyName: 'attendance_records_student_id_fkey',
-            columns: ['student_id'],
-            isOneToOne: false,
-            referencedRelation: 'students',
-            referencedColumns: ['id']
-          }
-        ];
+        Relationships: [];
       };
       activity_logs: {
         Row: {
@@ -164,15 +141,7 @@ export interface Database {
           user_id?: string;
           action_description?: string;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'activity_logs_user_id_fkey',
-            columns: ['user_id'],
-            isOneToOne: false,
-            referencedRelation: 'profiles',
-            referencedColumns: ['id']
-          }
-        ];
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -190,15 +159,7 @@ export interface Database {
           full_name?: string;
           email?: string;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'profiles_id_fkey',
-            columns: ['id'],
-            isOneToOne: true,
-            referencedRelation: 'users',
-            referencedColumns: ['id']
-          }
-        ];
+        Relationships: [];
       };
     };
     Views: {};

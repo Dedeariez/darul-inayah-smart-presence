@@ -59,7 +59,7 @@ const ActivityLogComponent = () => {
                             <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                                 <div>
                                     <p className="text-sm text-gray-500">
-                                        <span className="font-medium text-gray-900">{log.user_profile?.full_name || 'Sistem'}</span> {log.action_description}
+                                        <span className="font-medium text-gray-900">{log.profiles?.full_name || 'Sistem'}</span> {log.action_description}
                                     </p>
                                 </div>
                                 <div className="whitespace-nowrap text-right text-sm text-gray-500">
