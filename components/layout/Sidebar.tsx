@@ -42,7 +42,7 @@ const Sidebar: React.FC = () => {
         <aside id="logo-sidebar" className="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0" aria-label="Sidebar">
             <div className="h-full px-3 py-4 overflow-y-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
                 <a href="#" className="flex items-center ps-2.5 mb-5">
-                    <img src="https://picsum.photos/seed/schoollogo/40/40" className="h-8 me-3 rounded-full" alt="MA Darul Inayah Logo" />
+                    <img src="favicon.svg" className="h-8 me-3" alt="MA Darul Inayah Logo" />
                     <span className="self-center text-xl font-semibold whitespace-nowrap dark:text-white">MA Darul Inayah</span>
                 </a>
                 <ul className="space-y-2 font-medium">
@@ -59,5 +59,3 @@ const Sidebar: React.FC = () => {
         </aside>
     );
 };
-
-export default Sidebar;

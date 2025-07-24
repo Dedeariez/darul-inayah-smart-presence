@@ -82,7 +82,7 @@ const ParentView: React.FC = () => {
                 <Card>
                     <CardHeader>
                         <div className="flex justify-center mb-4">
-                            <img src="https://picsum.photos/seed/schoollogo/80/80" className="h-20 w-20 rounded-full" alt="MA Darul Inayah Logo" />
+                            <img src="favicon.svg" className="h-20 w-20" alt="MA Darul Inayah Logo" />
                         </div>
                         <CardTitle className="text-2xl text-center">Cek Absensi Siswa</CardTitle>
                         <CardDescription className="text-center">

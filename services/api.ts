@@ -35,7 +35,6 @@ export type Database = {
           class_period?: number
           status?: string
         }
-        Relationships: unknown[]
       }
       history_logs: {
         Row: {
@@ -56,7 +55,6 @@ export type Database = {
           user_name?: string
           action?: string
         }
-        Relationships: unknown[]
       }
       profiles: {
         Row: {
@@ -73,7 +71,6 @@ export type Database = {
           name?: string
           role?: string
         }
-        Relationships: unknown[]
       }
       students: {
         Row: {
@@ -106,7 +103,6 @@ export type Database = {
           gender?: string
           parent_id?: string | null
         }
-        Relationships: unknown[]
       }
     }
     Views: {
